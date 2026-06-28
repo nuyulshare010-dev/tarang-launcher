@@ -32,7 +32,7 @@ fun LauncherScreen(
         when {
             uiState.isLoading -> Text("Loading apps…", color = Color.White, fontSize = 20.sp)
             uiState.apps.isEmpty() -> Text("No apps found", color = Color.White, fontSize = 20.sp)
-            else -> AppGrid(
+            else -> LauncherContent(
                 apps = uiState.apps,
                 iconLoader = container.iconLoader,
                 onAppFocused = viewModel::onAppFocused,
