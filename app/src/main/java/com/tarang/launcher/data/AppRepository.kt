@@ -1,10 +1,16 @@
 package com.tarang.launcher.data
 
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.util.Log
+import androidx.core.content.ContextCompat
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.withContext
 
 /**
@@ -43,6 +49,28 @@ class AppRepository(private val context: Context) {
                 isTvApp = isTv,
             )
         }
+    }
+
+    /**
+     * Emits whenever an app is installed, removed, replaced or enabled/disabled, so the launcher
+     * can refresh its list without a restart. Package broadcasts are protected system broadcasts,
+     * so registering NOT_EXPORTED is correct (and required on API 34+).
+     */
+    fun packageEvents(): Flow<Unit> = callbackFlow {
+        val filter = IntentFilter().apply {
+            addAction(Intent.ACTION_PACKAGE_ADDED)
+            addAction(Intent.ACTION_PACKAGE_REMOVED)
+            addAction(Intent.ACTION_PACKAGE_REPLACED)
+            addAction(Intent.ACTION_PACKAGE_CHANGED)
+            addDataScheme("package")
+        }
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                trySend(Unit)
+            }
+        }
+        ContextCompat.registerReceiver(context, receiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
+        awaitClose { runCatching { context.unregisterReceiver(receiver) } }
     }
 
     private fun launchIntentFor(packageName: String): Intent? =

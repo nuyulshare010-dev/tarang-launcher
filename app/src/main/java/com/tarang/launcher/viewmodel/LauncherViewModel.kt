@@ -10,10 +10,12 @@ import com.tarang.launcher.data.AppRepository
 import com.tarang.launcher.data.FavoritesStore
 import com.tarang.launcher.data.LauncherSettings
 import com.tarang.launcher.data.SettingsStore
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -26,6 +28,7 @@ data class LauncherUiState(
     val focusedPackage: String? = null,
 )
 
+@OptIn(FlowPreview::class)
 class LauncherViewModel(
     private val repository: AppRepository,
     private val favoritesStore: FavoritesStore,
@@ -55,11 +58,18 @@ class LauncherViewModel(
 
     init {
         refresh()
+        // Keep the list live: refresh when apps are installed/removed/updated (debounced to
+        // coalesce the burst of broadcasts a single install produces).
+        viewModelScope.launch {
+            repository.packageEvents().debounce(400).collect { refresh(showLoading = false) }
+        }
     }
 
-    fun refresh() {
+    /** [showLoading] is false for background refreshes (e.g. install/uninstall) so the grid
+     *  doesn't flash the "Loading…" placeholder while the user is looking at it. */
+    fun refresh(showLoading: Boolean = true) {
         viewModelScope.launch {
-            loading.value = true
+            if (showLoading) loading.value = true
             val loaded = repository.loadApps()
             apps.value = loaded
             loading.value = false
@@ -74,12 +84,15 @@ class LauncherViewModel(
         if (focusedPackage.value != packageName) focusedPackage.value = packageName
     }
 
-    fun launchApp(packageName: String) {
-        repository.launch(packageName)
-    }
+    fun launchApp(packageName: String): Boolean = repository.launch(packageName)
 
     fun toggleFavorite(packageName: String) {
         viewModelScope.launch { favoritesStore.toggle(packageName) }
+    }
+
+    /** Persists a new dock order (used when the user reorders favorites in move mode). */
+    fun setFavoritesOrder(packages: List<String>) {
+        viewModelScope.launch { favoritesStore.setFavorites(packages) }
     }
 
     fun setWallpaper(id: Int) = viewModelScope.launch { settingsStore.setWallpaper(id) }.let {}
