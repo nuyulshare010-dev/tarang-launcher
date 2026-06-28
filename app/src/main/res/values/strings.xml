@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Tarang</string>
+    <string name="accessibility_service_label">Tarang Home</string>
+    <string name="accessibility_service_description">Lets Tarang act as your home screen: when the system launcher opens, Tarang opens instead. Tarang reads only which app is in the foreground and does not collect personal data.</string>
 </resources>
