@@ -31,6 +31,8 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -140,18 +142,19 @@ private fun TopBar(onOpenSettings: () -> Unit, tuneFocus: FocusRequester) {
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            WifiIndicator(status = net, modifier = Modifier.padding(horizontal = 8.dp).size(22.dp))
+            PillButton(onClick = { openWifiSettings(context) }, contentDescription = "Wi-Fi settings") {
+                WifiIndicator(status = net, modifier = Modifier.size(22.dp))
+            }
             PillButton(
-                iconRes = R.drawable.ic_settings,
-                contentDescription = "Android settings",
-                onClick = { openAndroidSettings(context) },
-            )
-            PillButton(
-                iconRes = R.drawable.ic_tune,
-                contentDescription = "Launcher settings",
                 onClick = onOpenSettings,
+                contentDescription = "Launcher settings",
                 modifier = Modifier.focusRequester(tuneFocus),
-            )
+            ) {
+                Image(painterResource(R.drawable.ic_tune), contentDescription = null, modifier = Modifier.size(22.dp))
+            }
+            PillButton(onClick = { openAndroidSettings(context) }, contentDescription = "Android settings") {
+                Image(painterResource(R.drawable.ic_settings), contentDescription = null, modifier = Modifier.size(22.dp))
+            }
         }
     }
 }
@@ -159,14 +162,16 @@ private fun TopBar(onOpenSettings: () -> Unit, tuneFocus: FocusRequester) {
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 private fun PillButton(
-    iconRes: Int,
-    contentDescription: String,
     onClick: () -> Unit,
+    contentDescription: String,
     modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
 ) {
     Surface(
         onClick = onClick,
-        modifier = modifier.size(40.dp),
+        modifier = modifier
+            .size(40.dp)
+            .semantics { this.contentDescription = contentDescription },
         shape = ClickableSurfaceDefaults.shape(CircleShape),
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1.1f),
         colors = ClickableSurfaceDefaults.colors(
@@ -174,13 +179,13 @@ private fun PillButton(
             focusedContainerColor = Color.White.copy(alpha = 0.25f),
         ),
     ) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Image(
-                painter = painterResource(iconRes),
-                contentDescription = contentDescription,
-                modifier = Modifier.size(22.dp),
-            )
-        }
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { content() }
+    }
+}
+
+private fun openWifiSettings(context: Context) {
+    runCatching {
+        context.startActivity(Intent(Settings.ACTION_WIFI_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 }
 
