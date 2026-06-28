@@ -259,11 +259,11 @@ private fun LaunchZoom(anim: LaunchAnim, progress: Float, iconLoader: IconLoader
             bottom = lerp(start.bottom, h * (1f + over), t),
         )
         val density = LocalDensity.current
-        // Hold the tile opaque, then dissolve to black only in the last stretch.
-        val tileAlpha = (1f - ((t - 0.82f) / 0.18f)).coerceIn(0f, 1f)
+        // A container that fades in over the icon: 0% at the start, 100% at the end of the zoom.
+        val containerAlpha = t.coerceIn(0f, 1f)
 
         // Black behind the tile; the surrounding launcher has already faded to it.
-        Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = t.coerceIn(0f, 1f))))
+        Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = containerAlpha)))
         Box(
             modifier = Modifier
                 .offset { IntOffset(cur.left.roundToInt(), cur.top.roundToInt()) }
@@ -271,7 +271,6 @@ private fun LaunchZoom(anim: LaunchAnim, progress: Float, iconLoader: IconLoader
                     width = with(density) { cur.width.toDp() },
                     height = with(density) { cur.height.toDp() },
                 )
-                .graphicsLayer { alpha = tileAlpha }
                 .clip(RoundedCornerShape(lerp(24f, 0f, t).dp)),
         ) {
             when (val art = tile) {
@@ -291,6 +290,8 @@ private fun LaunchZoom(anim: LaunchAnim, progress: Float, iconLoader: IconLoader
                 }
                 null -> Box(modifier = Modifier.fillMaxSize().background(Color(0xFF2A2A2C)))
             }
+            // The container, layered on top of the icon, fading in to fully cover it by the end.
+            Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = containerAlpha)))
         }
     }
 }
