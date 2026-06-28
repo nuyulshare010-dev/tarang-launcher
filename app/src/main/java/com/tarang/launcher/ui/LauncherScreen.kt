@@ -255,23 +255,22 @@ private fun LaunchZoom(anim: LaunchAnim, progress: Float, iconLoader: IconLoader
 
         val start = anim.bounds ?: Rect(w * 0.42f, h * 0.42f, w * 0.58f, h * 0.58f)
         val ratio = if (start.height > 0f) start.width / start.height else w / h
-        // Grow about the tile's OWN centre (so the artwork doesn't drift), keeping the tile's
-        // aspect ratio, to a rect big enough to cover the screen from that centre.
-        val cx = (start.left + start.right) / 2f
-        val cy = (start.top + start.bottom) / 2f
-        val margin = 1.1f
-        var halfW = maxOf(cx, w - cx) * margin
-        var halfH = halfW / ratio
-        val needHalfH = maxOf(cy, h - cy) * margin
-        if (halfH < needHalfH) {
-            halfH = needHalfH
-            halfW = halfH * ratio
-        }
+        // Fly to a SCREEN-CENTRED rect that fills the whole screen, so a tile on the left/bottom
+        // doesn't just balloon in its own corner. Keep the tile's aspect ratio so ContentScale.Crop
+        // never re-crops the artwork mid-zoom (that re-crop was the old sideways drift).
+        // Front-load the geometry: the tile finishes flying/filling by ~55%, then it blurs and
+        // blackens IN PLACE (centred, full-screen) — otherwise the centre-fill happens only at the
+        // very end, after the container has already gone black.
+        val geom = (t / 0.55f).coerceIn(0f, 1f)
+        val endW = w * 1.06f
+        val endH = endW / ratio
+        val cx = w / 2f
+        val cy = h / 2f
         val cur = Rect(
-            left = lerp(start.left, cx - halfW, t),
-            top = lerp(start.top, cy - halfH, t),
-            right = lerp(start.right, cx + halfW, t),
-            bottom = lerp(start.bottom, cy + halfH, t),
+            left = lerp(start.left, cx - endW / 2f, geom),
+            top = lerp(start.top, cy - endH / 2f, geom),
+            right = lerp(start.right, cx + endW / 2f, geom),
+            bottom = lerp(start.bottom, cy + endH / 2f, geom),
         )
         val density = LocalDensity.current
         // Container fades in over the icon and is fully solid by 90% of the animation.
@@ -287,7 +286,7 @@ private fun LaunchZoom(anim: LaunchAnim, progress: Float, iconLoader: IconLoader
                     width = with(density) { cur.width.toDp() },
                     height = with(density) { cur.height.toDp() },
                 )
-                .clip(RoundedCornerShape(lerp(24f, 0f, t).dp)),
+                .clip(RoundedCornerShape(lerp(24f, 0f, geom).dp)),
         ) {
             // The artwork, progressively blurred as the container takes over.
             Box(modifier = Modifier.fillMaxSize().blurCompat(blurRadius)) {
