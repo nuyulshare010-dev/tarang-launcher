@@ -6,7 +6,6 @@ import android.content.pm.PackageManager
 import android.graphics.drawable.Drawable
 import android.util.LruCache
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.core.graphics.drawable.toBitmap
 import androidx.palette.graphics.Palette
@@ -19,18 +18,20 @@ import kotlinx.coroutines.withContext
  * - [Fallback]: apps without a banner — their square icon centered on a color drawn from it.
  */
 sealed interface TileArt {
-    data class Banner(val image: ImageBitmap) : TileArt
-    data class Fallback(val icon: ImageBitmap?, val color: Color) : TileArt
+    data class Banner(val image: androidx.compose.ui.graphics.ImageBitmap) : TileArt
+    data class Fallback(val icon: androidx.compose.ui.graphics.ImageBitmap?, val color: Color) : TileArt
 }
 
 /**
- * Resolves per-app tile artwork (plan §2.3 / §5.3). Prefers the app's banner so tiles look like
- * tvOS/Google TV; falls back to icon-on-color when no banner is provided. Cached per package.
+ * Resolves per-app tile artwork (plan §2.3 / §5.3) and a brand accent color. Prefers the app's
+ * banner so tiles look like tvOS/Google TV; falls back to icon-on-color when no banner is provided.
+ * Cached per package.
  */
 class IconLoader(context: Context) {
 
     private val pm: PackageManager = context.applicationContext.packageManager
     private val tileCache = LruCache<String, TileArt>(CACHE_ENTRIES)
+    private val colorCache = LruCache<String, Int>(CACHE_ENTRIES)
 
     suspend fun loadTile(app: AppInfo): TileArt {
         tileCache.get(app.packageName)?.let { return it }
@@ -47,6 +48,16 @@ class IconLoader(context: Context) {
             }
             tileCache.put(app.packageName, tile)
             tile
+        }
+    }
+
+    /** Brand color drawn from the app's icon, used for the ambient wallpaper tint. */
+    suspend fun accentColor(app: AppInfo): Color {
+        colorCache.get(app.packageName)?.let { return Color(it) }
+        return withContext(Dispatchers.IO) {
+            val argb = resolveIcon(app)?.let { colorFromDrawable(it) } ?: DEFAULT_TILE_ARGB
+            colorCache.put(app.packageName, argb)
+            Color(argb)
         }
     }
 

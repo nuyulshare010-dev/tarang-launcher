@@ -1,11 +1,10 @@
 package com.tarang.launcher.ui
 
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -18,9 +17,8 @@ import com.tarang.launcher.di.AppContainer
 import com.tarang.launcher.viewmodel.LauncherViewModel
 
 /**
- * Top-level launcher UI: the Top Shelf hero (top ~40%) over the dock + app grid (~60%).
- * The shelf reacts to the focused app, which the grid reports up through the ViewModel.
- * Long-press a tile to pin/unpin it from the dock.
+ * Top-level launcher UI: an animated wallpaper behind a clean app grid. No content rows or
+ * recommendations — the wallpaper gently tints toward the focused app's color.
  */
 @Composable
 fun LauncherScreen(
@@ -32,38 +30,33 @@ fun LauncherScreen(
     )
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+    val focusedApp = remember(uiState.focusedPackage, uiState.allApps) {
+        uiState.allApps.firstOrNull { it.packageName == uiState.focusedPackage }
+    }
+    val ambient: Color? by produceState<Color?>(initialValue = null, focusedApp?.packageName) {
+        value = focusedApp?.let { container.iconLoader.accentColor(it) }
+    }
+
+    Box(modifier = modifier.fillMaxSize()) {
+        AnimatedWallpaper(ambient = ambient, modifier = Modifier.fillMaxSize())
+
         when {
-            uiState.isLoading -> Text("Loading apps…", color = Color.White, fontSize = 20.sp)
-            uiState.allApps.isEmpty() -> Text("No apps found", color = Color.White, fontSize = 20.sp)
-            else -> {
-                val focusedApp = remember(uiState.focusedPackage, uiState.allApps) {
-                    uiState.allApps.firstOrNull { it.packageName == uiState.focusedPackage }
-                }
-                Column(modifier = Modifier.fillMaxSize()) {
-                    TopShelf(
-                        app = focusedApp,
-                        iconLoader = container.iconLoader,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(TOP_SHELF_WEIGHT),
-                    )
-                    LauncherContent(
-                        dockApps = uiState.dockApps,
-                        gridApps = uiState.gridApps,
-                        iconLoader = container.iconLoader,
-                        onAppFocused = viewModel::onAppFocused,
-                        onAppClicked = viewModel::launchApp,
-                        onToggleFavorite = viewModel::toggleFavorite,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(GRID_WEIGHT),
-                    )
-                }
-            }
+            uiState.isLoading -> Centered { Text("Loading apps…", color = Color.White, fontSize = 20.sp) }
+            uiState.allApps.isEmpty() -> Centered { Text("No apps found", color = Color.White, fontSize = 20.sp) }
+            else -> LauncherContent(
+                dockApps = uiState.dockApps,
+                gridApps = uiState.gridApps,
+                iconLoader = container.iconLoader,
+                onAppFocused = viewModel::onAppFocused,
+                onAppClicked = viewModel::launchApp,
+                onToggleFavorite = viewModel::toggleFavorite,
+                modifier = Modifier.fillMaxSize(),
+            )
         }
     }
 }
 
-private const val TOP_SHELF_WEIGHT = 0.4f
-private const val GRID_WEIGHT = 0.6f
+@Composable
+private fun Centered(content: @Composable () -> Unit) {
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { content() }
+}
