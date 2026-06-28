@@ -7,6 +7,10 @@
         android:name="android.permission.QUERY_ALL_PACKAGES"
         tools:ignore="QueryAllPackagesPermission" />
 
+    <!-- Read connectivity/Wi-Fi state for the status indicator (both normal permissions). -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+
     <!-- TV app: no touchscreen; leanback optional so it still runs on phone/emulator. -->
     <uses-feature
         android:name="android.software.leanback"
