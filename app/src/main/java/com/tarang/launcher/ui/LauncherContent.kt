@@ -69,4 +69,4 @@ fun LauncherContent(
     }
 }
 
-private const val COLUMNS = 6
+private const val COLUMNS = 4

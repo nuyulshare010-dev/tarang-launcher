@@ -1,34 +1,31 @@
 package com.tarang.launcher.ui
 
+import android.os.Build
 import androidx.compose.animation.Crossfade
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.tv.material3.Text
 import com.tarang.launcher.data.AppInfo
 import com.tarang.launcher.data.IconLoader
-
-private val DefaultShelfColor = Color(0xFF1C1C1E)
+import com.tarang.launcher.data.TileArt
 
 /**
- * tvOS-style Top Shelf: a hero band whose backdrop color is derived from the focused app's icon
- * and animates as focus moves; the app branding crossfades (plan §5.5). v1 is a color gradient +
- * name; real per-app shelf content (TvProvider channels) is deferred to a later milestone.
+ * tvOS-style Top Shelf: a hero band showing the focused app's banner artwork, blurred, with a
+ * scrim that fades into the grid below; it crossfades as focus moves (plan §5.5). Apps without a
+ * banner fall back to a color gradient drawn from their icon. Real per-app shelf *content*
+ * (TvProvider channels) is a later milestone.
  */
 @Composable
 fun TopShelf(
@@ -36,42 +33,48 @@ fun TopShelf(
     iconLoader: IconLoader,
     modifier: Modifier = Modifier,
 ) {
-    val targetColor by produceState(initialValue = DefaultShelfColor, key1 = app?.packageName) {
-        value = app?.let { iconLoader.dominantColor(it) } ?: DefaultShelfColor
+    val tile: TileArt? by produceState<TileArt?>(initialValue = null, app?.packageName) {
+        value = app?.let { iconLoader.loadTile(it) }
     }
-    val shelfColor by animateColorAsState(
-        targetValue = targetColor,
-        animationSpec = tween(durationMillis = 450),
-        label = "shelfColor",
-    )
 
-    Box(
-        modifier = modifier.background(
-            Brush.verticalGradient(listOf(shelfColor.copy(alpha = 0.85f), Color.Black)),
-        ),
-        contentAlignment = Alignment.BottomStart,
-    ) {
-        Crossfade(targetState = app, animationSpec = tween(300), label = "shelfBranding") { current ->
-            if (current != null) {
-                Column(
-                    modifier = Modifier.padding(start = 48.dp, end = 48.dp, bottom = 28.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    Text(
-                        text = current.label,
-                        color = Color.White,
-                        fontSize = 40.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        text = if (current.isTvApp) "TV app" else "App",
-                        color = Color.White.copy(alpha = 0.7f),
-                        fontSize = 16.sp,
-                    )
-                }
+    Box(modifier = modifier.background(Color.Black)) {
+        Crossfade(targetState = tile, animationSpec = tween(durationMillis = 400), label = "shelfBackdrop") { art ->
+            when (art) {
+                is TileArt.Banner -> Image(
+                    bitmap = art.image,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .blurCompat(36.dp),
+                    contentScale = ContentScale.Crop,
+                    alpha = 0.65f,
+                )
+
+                is TileArt.Fallback -> Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Brush.verticalGradient(listOf(art.color.copy(alpha = 0.7f), Color.Black))),
+                )
+
+                null -> Box(modifier = Modifier.fillMaxSize())
             }
         }
+
+        // Scrim: keep the top clear, fade to solid black at the bottom so it blends into the grid.
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        0.0f to Color.Transparent,
+                        0.55f to Color.Transparent,
+                        1.0f to Color.Black,
+                    ),
+                ),
+        )
     }
 }
+
+/** [Modifier.blur] is a no-op below API 31; gate it so we don't pretend to blur on older TVs. */
+private fun Modifier.blurCompat(radius: Dp): Modifier =
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) this.blur(radius) else this
