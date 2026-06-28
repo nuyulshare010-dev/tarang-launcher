@@ -7,6 +7,7 @@ lifecycle = "2.8.7"
 composeBom = "2024.12.01"
 tvMaterial = "1.0.0"
 coroutines = "1.8.1"
+palette = "1.0.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -24,6 +25,9 @@ androidx-compose-foundation = { group = "androidx.compose.foundation", name = "f
 
 # Compose for TV (Material3)
 androidx-tv-material = { group = "androidx.tv", name = "tv-material", version.ref = "tvMaterial" }
+
+# Palette — Top Shelf color extraction
+androidx-palette = { group = "androidx.palette", name = "palette-ktx", version.ref = "palette" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

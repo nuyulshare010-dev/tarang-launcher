@@ -34,7 +34,7 @@ fun LauncherContent(
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 48.dp, vertical = 40.dp),
+        contentPadding = PaddingValues(start = 48.dp, end = 48.dp, top = 24.dp, bottom = 40.dp),
         verticalArrangement = Arrangement.spacedBy(36.dp),
     ) {
         if (dock.isNotEmpty()) {
