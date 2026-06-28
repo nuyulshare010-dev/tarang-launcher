@@ -1,7 +1,10 @@
 package com.tarang.launcher.ui
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.BringIntoViewSpec
+import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -12,6 +15,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -28,9 +32,34 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import com.tarang.launcher.data.AppInfo
 import com.tarang.launcher.data.IconLoader
+import kotlin.math.abs
 
 private val DockShape = RoundedCornerShape(36.dp)
-private val DockTopGap = 250.dp // ~500px at 2x density — drops the dock well below the clock
+// Scrollable top space that drops the dock near the bottom (Apple-TV style). Because the bring-into-
+// view spec below won't scroll an already-visible item, the dock stays put here; it only scrolls
+// away when you move into the grid, letting the list use the full screen height without clipping.
+private val DockTopGap = 300.dp
+
+/**
+ * Minimal bring-into-view: don't move an item that's already fully visible (keeps the dock low on
+ * focus), and otherwise scroll the least amount to reveal it (so the grid scrolls up cleanly). The
+ * default TV behaviour over-scrolls, pulling the dock up and eating the top gap.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+private val MinimalBringIntoView = object : BringIntoViewSpec {
+    private val inset = 24f // keep a focused row a hair off the screen edges (covers the focus scale)
+
+    override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
+        val leading = offset - inset
+        val trailing = offset + size + inset
+        return when {
+            leading >= 0f && trailing <= containerSize -> 0f // already visible (with margin): don't move
+            size + inset * 2 > containerSize -> 0f // taller than the viewport: leave it
+            abs(leading) < abs(trailing - containerSize) -> leading
+            else -> trailing - containerSize
+        }
+    }
+}
 
 /**
  * tvOS-style home layout: a frosted "dock" (favorites) row on top, then the rest as a grid of rows.
@@ -41,6 +70,7 @@ private val DockTopGap = 250.dp // ~500px at 2x density — drops the dock well 
  * tile to "lift" it into move mode and rearrange/remove it (committed via [onReorder]).
  * [onAppBounds] reports the focused tile's rect for the launch transition.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun LauncherContent(
     dockApps: List<AppInfo>,
@@ -80,11 +110,10 @@ fun LauncherContent(
     }
 
     Box(modifier = modifier.fillMaxSize()) {
+        CompositionLocalProvider(LocalBringIntoViewSpec provides MinimalBringIntoView) {
         LazyColumn(
-            // Fixed top gap (not contentPadding — that's scrollable and gets eaten when the dock
-            // auto-focuses) pushes the dock down, away from the clock.
-            modifier = Modifier.fillMaxSize().padding(top = DockTopGap),
-            contentPadding = PaddingValues(start = 56.dp, end = 56.dp, top = 24.dp, bottom = 56.dp),
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = 56.dp, end = 56.dp, top = DockTopGap, bottom = 56.dp),
             verticalArrangement = Arrangement.spacedBy(28.dp),
         ) {
             if (hasDock) {
@@ -127,6 +156,7 @@ fun LauncherContent(
                     onAppBounds = onAppBounds,
                 )
             }
+        }
         }
 
         if (movingPackage != null) {

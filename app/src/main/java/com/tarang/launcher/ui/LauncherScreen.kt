@@ -1,6 +1,5 @@
 package com.tarang.launcher.ui
 
-import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
@@ -30,7 +29,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -40,7 +38,6 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -273,9 +270,10 @@ private fun LaunchZoom(anim: LaunchAnim, progress: Float, iconLoader: IconLoader
             bottom = lerp(start.bottom, cy + endH / 2f, geom),
         )
         val density = LocalDensity.current
-        // Container fades in over the icon and is fully solid by 90% of the animation.
-        val containerAlpha = (t / 0.9f).coerceIn(0f, 1f)
-        val blurRadius = (28f * containerAlpha).dp
+        // Container opacity by completion (piecewise linear): 0%->0%, 50%->70%, 100%->100%.
+        val containerAlpha = (
+            if (t < 0.5f) t / 0.5f * 0.7f else 0.7f + (t - 0.5f) / 0.5f * 0.3f
+            ).coerceIn(0f, 1f)
 
         // Black behind the tile; the surrounding launcher has already faded to it.
         Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = containerAlpha)))
@@ -288,27 +286,24 @@ private fun LaunchZoom(anim: LaunchAnim, progress: Float, iconLoader: IconLoader
                 )
                 .clip(RoundedCornerShape(lerp(24f, 0f, geom).dp)),
         ) {
-            // The artwork, progressively blurred as the container takes over.
-            Box(modifier = Modifier.fillMaxSize().blurCompat(blurRadius)) {
-                when (val art = tile) {
-                    is TileArt.Banner -> Image(
-                        bitmap = art.image,
-                        contentDescription = null,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop,
-                    )
-                    is TileArt.Fallback -> Box(
-                        modifier = Modifier.fillMaxSize().background(art.color),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        art.icon?.let {
-                            Image(bitmap = it, contentDescription = null, modifier = Modifier.size(96.dp))
-                        }
+            when (val art = tile) {
+                is TileArt.Banner -> Image(
+                    bitmap = art.image,
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                )
+                is TileArt.Fallback -> Box(
+                    modifier = Modifier.fillMaxSize().background(art.color),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    art.icon?.let {
+                        Image(bitmap = it, contentDescription = null, modifier = Modifier.size(96.dp))
                     }
-                    null -> Box(modifier = Modifier.fillMaxSize().background(Color(0xFF2A2A2C)))
                 }
+                null -> Box(modifier = Modifier.fillMaxSize().background(Color(0xFF2A2A2C)))
             }
-            // The container, layered on top of the icon, fully solid by 90%.
+            // The container, layered on top of the icon.
             Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = containerAlpha)))
         }
     }
@@ -328,7 +323,3 @@ private fun FadeIn(onDone: () -> Unit) {
 private fun Centered(content: @Composable () -> Unit) {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { content() }
 }
-
-/** [Modifier.blur] is a no-op below API 31; gate it so we don't pay for a blur that won't render. */
-private fun Modifier.blurCompat(radius: Dp): Modifier =
-    if (radius > 0.dp && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) this.blur(radius) else this
