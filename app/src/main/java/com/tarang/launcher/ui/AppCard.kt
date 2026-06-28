@@ -1,6 +1,5 @@
 package com.tarang.launcher.ui
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -18,7 +17,6 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
-import androidx.tv.material3.Border
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Surface
@@ -27,15 +25,14 @@ import com.tarang.launcher.data.IconLoader
 import com.tarang.launcher.data.TileArt
 
 private val TileShape = RoundedCornerShape(24.dp)
-private val FocusBorderColor = Color(0xFF67E8F9) // cool cyan — focus outline
 val TileWidth = 190.dp
 val TileHeight = 114.dp // 5:3, tvOS-style wide tile
 
 /**
- * One app tile: a wide banner-artwork tile that, on focus, scales up slightly and gains a cool
- * cyan outline. Apps without a banner fall back to their icon on a color. The app name is no longer
- * shown (the artwork makes it clear) but is kept as the content description for accessibility.
- * Long-press pins/unpins to the dock. [upFocusRequester], when set, redirects D-pad UP.
+ * One app tile: a wide banner-artwork tile that scales up slightly on focus (no border or glow).
+ * Apps without a banner fall back to their icon on a color. The app name is shown only as the
+ * content description (for accessibility). Long-press pins/unpins to the dock. [upFocusRequester],
+ * when set, redirects D-pad UP.
  */
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
@@ -62,13 +59,10 @@ fun AppCard(
             )
             .onFocusChanged { if (it.isFocused) onFocused() },
         shape = ClickableSurfaceDefaults.shape(TileShape),
-        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.08f),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.1f),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = Color(0xFF2A2A2C),
             focusedContainerColor = Color(0xFF2A2A2C),
-        ),
-        border = ClickableSurfaceDefaults.border(
-            focusedBorder = Border(border = BorderStroke(3.dp, FocusBorderColor), shape = TileShape),
         ),
     ) {
         when (val art = tile) {
