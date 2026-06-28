@@ -1,0 +1,31 @@
+/plans/
+
+# --- Gradle ---
+.gradle/
+build/
+**/build/
+.kotlin/
+
+# --- Android / SDK local config ---
+local.properties
+*.apk
+*.aab
+*.ap_
+*.dex
+captures/
+
+# --- Signing (never commit) ---
+*.jks
+*.keystore
+
+# --- IDE / editor ---
+.idea/
+*.iml
+.vscode/
+*.swp
+
+# --- OS ---
+.DS_Store
+
+# --- Logs ---
+*.log

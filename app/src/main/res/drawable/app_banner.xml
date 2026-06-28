@@ -1,0 +1,15 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="320dp"
+    android:height="180dp"
+    android:viewportWidth="320"
+    android:viewportHeight="180">
+    <path
+        android:fillColor="#0A0A0A"
+        android:pathData="M0,0h320v180H0z" />
+    <!-- "tarang" = wave -->
+    <path
+        android:pathData="M40,96 C66,56 92,136 118,96 C144,56 170,136 196,96 C222,56 248,136 280,96"
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="7" />
+</vector>
