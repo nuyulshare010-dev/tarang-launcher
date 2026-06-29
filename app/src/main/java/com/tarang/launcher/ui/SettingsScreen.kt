@@ -103,7 +103,7 @@ fun SettingsScreen(
         Row(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(start = 56.dp, end = 56.dp, top = 56.dp, bottom = 56.dp),
+                .padding(start = 56.dp, end = 56.dp, top = 44.dp, bottom = 0.dp),
         ) {
             // Left: section list.
             Column(modifier = Modifier.width(280.dp).fillMaxHeight()) {
@@ -269,6 +269,9 @@ private fun AppearancePane(
             ToggleChip("Blurred", settings.blurred) { onBlurred(true) }
             ToggleChip("Sharp", !settings.blurred) { onBlurred(false) }
         }
+
+        // Breathing room so the last section can scroll clear of the screen edge.
+        Spacer(Modifier.height(44.dp))
     }
 }
 

@@ -80,8 +80,8 @@ fun AppArtworkWallpaper(packageName: String, blurred: Boolean, isDark: Boolean, 
                 )
             }
         }
-        // Legibility scrim (theme-aware; darker at top for the clock/pill, and bottom for the dock).
-        ScrimOverlay(isDark)
+        // No full-image scrim — the poster shows at full fidelity; the clock/pill have their own
+        // containers and the dock is frosted, so text stays legible without washing the artwork.
     }
 }
 

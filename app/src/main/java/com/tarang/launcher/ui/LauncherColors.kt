@@ -28,7 +28,8 @@ data class LauncherColors(
     val chip: Color,        // idle chip / row background
     val highlight: Color,   // focused or selected background fill
     val onHighlight: Color, // text / icon on [highlight]
-    val chrome: Color,      // translucent fill over the wallpaper (dock, status pill)
+    val chrome: Color,      // translucent fill over the wallpaper (dock)
+    val textBackdrop: Color, // local container behind free-floating text (clock, status pill)
     val line: Color,        // hairline borders
 )
 
@@ -42,6 +43,7 @@ val DarkLauncherColors = LauncherColors(
     highlight = Color.White,
     onHighlight = Color.Black,
     chrome = Color.White.copy(alpha = 0.10f),
+    textBackdrop = Color.Black.copy(alpha = 0.32f),
     line = Color.White.copy(alpha = 0.12f),
 )
 
@@ -55,6 +57,7 @@ val LightLauncherColors = LauncherColors(
     highlight = Color(0xFF17171C),
     onHighlight = Color.White,
     chrome = Color.White.copy(alpha = 0.42f),
+    textBackdrop = Color.White.copy(alpha = 0.55f),
     line = Color(0x1F000000),
 )
 

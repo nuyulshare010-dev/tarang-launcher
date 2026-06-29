@@ -36,6 +36,8 @@ fun ImageWallpaper(path: String, blurred: Boolean, isDark: Boolean, modifier: Mo
     Box(modifier = modifier) {
         val img = image
         if (img != null) {
+            // Shown at full fidelity (no scrim) — legibility is handled by the clock/pill's own
+            // containers and the frosted dock, so the photo isn't washed out.
             Image(
                 bitmap = img,
                 contentDescription = null,
@@ -43,27 +45,9 @@ fun ImageWallpaper(path: String, blurred: Boolean, isDark: Boolean, modifier: Mo
                 contentScale = ContentScale.Crop,
             )
         } else {
-            Box(modifier = Modifier.fillMaxSize().background(Color.Black))
+            Box(modifier = Modifier.fillMaxSize().background(if (isDark) Color.Black else Color.White))
         }
-        // Scrim for legibility, stronger at top (clock/status) and bottom (dock). In light theme it
-        // lightens instead so dark foreground text stays readable over the photo.
-        ScrimOverlay(isDark)
     }
-}
-
-/** A top/bottom-weighted scrim that darkens (dark theme) or lightens (light theme) the wallpaper. */
-@Composable
-internal fun ScrimOverlay(isDark: Boolean) {
-    val c = if (isDark) Color.Black else Color.White
-    Box(
-        modifier = Modifier.fillMaxSize().background(
-            Brush.verticalGradient(
-                0.0f to c.copy(alpha = if (isDark) 0.45f else 0.55f),
-                0.45f to c.copy(alpha = if (isDark) 0.18f else 0.30f),
-                1.0f to c.copy(alpha = if (isDark) 0.55f else 0.62f),
-            ),
-        ),
-    )
 }
 
 /** A small thumbnail of the chosen photo for the settings swatch (null if none / unreadable). */

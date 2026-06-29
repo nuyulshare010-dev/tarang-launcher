@@ -227,12 +227,19 @@ private fun TopBar(onOpenSettings: () -> Unit, tuneFocus: FocusRequester) {
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Clock()
+        // Each free-floating element carries its own backdrop container so text stays legible over
+        // any wallpaper without scrimming the whole image.
+        Clock(
+            modifier = Modifier
+                .clip(RoundedCornerShape(16.dp))
+                .background(colors.textBackdrop)
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+        )
         // Status pill: Wi-Fi indicator + Android settings + launcher (tune) settings.
         Row(
             modifier = Modifier
                 .clip(RoundedCornerShape(percent = 50))
-                .background(colors.chrome)
+                .background(colors.textBackdrop)
                 .border(1.dp, colors.line, RoundedCornerShape(percent = 50))
                 .padding(horizontal = 8.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(4.dp),
