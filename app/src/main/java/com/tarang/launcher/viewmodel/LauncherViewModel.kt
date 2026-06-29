@@ -117,6 +117,9 @@ class LauncherViewModel(
     fun setReduceMotion(value: Boolean) = viewModelScope.launch { settingsStore.setReduceMotion(value) }.let {}
     fun setAppHidden(packageName: String, hidden: Boolean) =
         viewModelScope.launch { settingsStore.setAppHidden(packageName, hidden) }.let {}
+    fun setScreensaverTimeout(sec: Int) = viewModelScope.launch { settingsStore.setScreensaverTimeout(sec) }.let {}
+    fun setScreensaverSource(source: com.tarang.launcher.data.ScreensaverSource) =
+        viewModelScope.launch { settingsStore.setScreensaverSource(source) }.let {}
 
     companion object {
         private const val DEFAULT_DOCK_COUNT = 5

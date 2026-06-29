@@ -21,7 +21,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -38,13 +40,19 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.rememberGraphicsLayer
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
@@ -122,8 +130,48 @@ fun LauncherScreen(
     val isDark = rememberIsDark(settings.theme)
     val colors = if (isDark) DarkLauncherColors else LightLauncherColors
 
+    // Idle screensaver: bump [interaction] on every key to restart the timer; when it elapses (only
+    // while resumed, so it won't pop up behind another app) show the saver. The first key wakes it.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var interaction by remember { mutableIntStateOf(0) }
+    var screensaverOn by remember { mutableStateOf(false) }
+    var wakingUp by remember { mutableStateOf(false) }
+    val idleMs = settings.screensaverTimeoutSec * 1000L
+    LaunchedEffect(interaction, idleMs, lifecycleOwner) {
+        if (idleMs <= 0L) return@LaunchedEffect
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            kotlinx.coroutines.delay(idleMs)
+            screensaverOn = true
+        }
+    }
+
     CompositionLocalProvider(LocalLauncherColors provides colors) {
-    Box(modifier = modifier.fillMaxSize()) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .onPreviewKeyEvent { e ->
+                when {
+                    // Screensaver is up: the first key wakes it and is swallowed (whole press).
+                    screensaverOn -> {
+                        if (e.type == KeyEventType.KeyDown) {
+                            screensaverOn = false
+                            wakingUp = true
+                            interaction++
+                        }
+                        true
+                    }
+                    // Swallow the key-up of the press that dismissed the saver (no stray click/launch).
+                    wakingUp -> {
+                        if (e.type == KeyEventType.KeyUp) wakingUp = false
+                        true
+                    }
+                    else -> {
+                        if (e.type == KeyEventType.KeyDown) interaction++ // any key resets the idle timer
+                        false
+                    }
+                }
+            },
+    ) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -184,6 +232,10 @@ fun LauncherScreen(
                 onReduceMotion = viewModel::setReduceMotion,
                 hiddenApps = uiState.allApps.filter { it.packageName in settings.hiddenApps },
                 onUnhideApp = { viewModel.setAppHidden(it, false) },
+                screensaverTimeoutSec = settings.screensaverTimeoutSec,
+                onScreensaverTimeout = viewModel::setScreensaverTimeout,
+                screensaverSource = settings.screensaverSource,
+                onScreensaverSource = viewModel::setScreensaverSource,
                 onClose = { showSettings = false },
             )
         } else {
@@ -224,6 +276,17 @@ fun LauncherScreen(
 
         if (showTvProbe) {
             TvProbeDialog(onDismiss = { showTvProbe = false })
+        }
+
+        // Drawn last so it covers everything (grid, settings, dialogs); key handling above wakes it.
+        if (screensaverOn) {
+            Screensaver(
+                posterPackages = uiState.dockApps.map { it.packageName },
+                watchNext = uiState.watchNext,
+                source = settings.screensaverSource,
+                reduceMotion = settings.reduceMotion,
+                modifier = Modifier.fillMaxSize(),
+            )
         }
     }
     }

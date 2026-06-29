@@ -21,6 +21,12 @@ const val DEFAULT_COLUMNS = 4
 /** Light/dark appearance. [AUTO] follows the time of day (light 7am–7pm, dark otherwise). */
 enum class ThemeMode { DARK, LIGHT, AUTO }
 
+/** What the idle screensaver shows. */
+enum class ScreensaverSource { ARTWORK, CLOCK }
+
+/** Idle timeouts (seconds) the user can pick for the screensaver; 0 = off. */
+val SCREENSAVER_TIMEOUTS = listOf(0, 60, 180, 300, 600)
+
 /** User-tunable launcher look (set from the in-app settings panel). */
 data class LauncherSettings(
     val wallpaperId: Int = 0,
@@ -44,6 +50,10 @@ data class LauncherSettings(
     val reduceMotion: Boolean = false,
     /** Packages the user has hidden from the grid (still launchable, just out of sight). */
     val hiddenApps: Set<String> = emptySet(),
+    /** Idle seconds before the screensaver appears (0 = off). */
+    val screensaverTimeoutSec: Int = 300,
+    /** What the screensaver shows when it kicks in. */
+    val screensaverSource: ScreensaverSource = ScreensaverSource.ARTWORK,
 )
 
 /** Persists [LauncherSettings] via DataStore. */
@@ -65,6 +75,10 @@ class SettingsStore(context: Context) {
             showContinueRow = p[SHOW_CONTINUE_ROW] ?: true,
             reduceMotion = p[REDUCE_MOTION] ?: false,
             hiddenApps = p[HIDDEN_APPS] ?: emptySet(),
+            screensaverTimeoutSec = p[SCREENSAVER_TIMEOUT] ?: 300,
+            screensaverSource = runCatching {
+                ScreensaverSource.valueOf(p[SCREENSAVER_SOURCE] ?: "ARTWORK")
+            }.getOrDefault(ScreensaverSource.ARTWORK),
         )
     }
 
@@ -105,6 +119,10 @@ class SettingsStore(context: Context) {
         p[HIDDEN_APPS] = if (hidden) current + packageName else current - packageName
     }
 
+    suspend fun setScreensaverTimeout(sec: Int) = dataStore.edit { it[SCREENSAVER_TIMEOUT] = sec }
+    suspend fun setScreensaverSource(source: ScreensaverSource) =
+        dataStore.edit { it[SCREENSAVER_SOURCE] = source.name }
+
     private companion object {
         val WALLPAPER_ID = intPreferencesKey("wallpaper_id")
         val ANIMATED = booleanPreferencesKey("animated")
@@ -118,5 +136,7 @@ class SettingsStore(context: Context) {
         val SHOW_CONTINUE_ROW = booleanPreferencesKey("show_continue_row")
         val REDUCE_MOTION = booleanPreferencesKey("reduce_motion")
         val HIDDEN_APPS = stringSetPreferencesKey("hidden_apps")
+        val SCREENSAVER_TIMEOUT = intPreferencesKey("screensaver_timeout")
+        val SCREENSAVER_SOURCE = stringPreferencesKey("screensaver_source")
     }
 }

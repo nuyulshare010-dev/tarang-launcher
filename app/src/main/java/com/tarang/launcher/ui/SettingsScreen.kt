@@ -56,6 +56,8 @@ import com.tarang.launcher.data.AppInfo
 import com.tarang.launcher.data.LauncherSettings
 import com.tarang.launcher.data.MAX_COLUMNS
 import com.tarang.launcher.data.MIN_COLUMNS
+import com.tarang.launcher.data.SCREENSAVER_TIMEOUTS
+import com.tarang.launcher.data.ScreensaverSource
 import com.tarang.launcher.data.TV_LISTINGS_PERMISSION
 import com.tarang.launcher.data.ThemeMode
 import com.tarang.launcher.data.TvArtwork
@@ -94,6 +96,10 @@ fun SettingsScreen(
     onReduceMotion: (Boolean) -> Unit,
     hiddenApps: List<AppInfo>,
     onUnhideApp: (String) -> Unit,
+    screensaverTimeoutSec: Int,
+    onScreensaverTimeout: (Int) -> Unit,
+    screensaverSource: ScreensaverSource,
+    onScreensaverSource: (ScreensaverSource) -> Unit,
     onClose: () -> Unit,
 ) {
     val colors = LocalLauncherColors.current
@@ -149,6 +155,10 @@ fun SettingsScreen(
                         onShowContinueRow = onShowContinueRow,
                         reduceMotion = reduceMotion,
                         onReduceMotion = onReduceMotion,
+                        screensaverTimeoutSec = screensaverTimeoutSec,
+                        onScreensaverTimeout = onScreensaverTimeout,
+                        screensaverSource = screensaverSource,
+                        onScreensaverSource = onScreensaverSource,
                     )
 
                     SettingsSection.HIDDEN_APPS -> HiddenAppsPane(
@@ -222,6 +232,10 @@ private fun AppearancePane(
     onShowContinueRow: (Boolean) -> Unit,
     reduceMotion: Boolean,
     onReduceMotion: (Boolean) -> Unit,
+    screensaverTimeoutSec: Int,
+    onScreensaverTimeout: (Int) -> Unit,
+    screensaverSource: ScreensaverSource,
+    onScreensaverSource: (ScreensaverSource) -> Unit,
 ) {
     val thumb = rememberWallpaperThumb(settings.wallpaperImagePath)
     val imageActive = settings.useImageWallpaper
@@ -306,6 +320,30 @@ private fun AppearancePane(
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             ToggleChip("Blurred", settings.blurred) { onBlurred(true) }
             ToggleChip("Sharp", !settings.blurred) { onBlurred(false) }
+        }
+
+        SectionLabel("Screensaver")
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            SCREENSAVER_TIMEOUTS.forEach { sec ->
+                ToggleChip(timeoutLabel(sec), sec == screensaverTimeoutSec) { onScreensaverTimeout(sec) }
+            }
+        }
+        if (screensaverTimeoutSec > 0) {
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                ToggleChip("Artwork", screensaverSource == ScreensaverSource.ARTWORK) {
+                    onScreensaverSource(ScreensaverSource.ARTWORK)
+                }
+                ToggleChip("Clock", screensaverSource == ScreensaverSource.CLOCK) {
+                    onScreensaverSource(ScreensaverSource.CLOCK)
+                }
+            }
+            Text(
+                "After this long with no input, show a slideshow of your apps' artwork (or just a " +
+                    "clock) until you press a button.",
+                color = LocalLauncherColors.current.textDim,
+                fontSize = 13.sp,
+                modifier = Modifier.fillMaxWidth(0.85f),
+            )
         }
 
         // Breathing room so the last section can scroll clear of the screen edge.
@@ -640,6 +678,12 @@ private fun ToggleChip(label: String, active: Boolean, onClick: () -> Unit) {
             modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
         )
     }
+}
+
+private fun timeoutLabel(sec: Int) = when {
+    sec <= 0 -> "Off"
+    sec < 60 -> "${sec}s"
+    else -> "${sec / 60} min"
 }
 
 private fun warningColor(isDark: Boolean) = if (isDark) Color(0xFFFFE082) else Color(0xFF8A6D00)
