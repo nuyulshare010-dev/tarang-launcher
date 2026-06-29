@@ -54,10 +54,8 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.io.File
 
 private const val MAX_IMAGES = 60
-private val IMAGE_EXTS = setOf("jpg", "jpeg", "png", "webp", "bmp", "heic")
 
 /** The runtime permission needed to list the device's photos (version-dependent). */
 fun imageReadPermission(): String =
@@ -70,25 +68,18 @@ fun imageReadPermission(): String =
 fun hasImagePermission(context: Context): Boolean =
     ContextCompat.checkSelfPermission(context, imageReadPermission()) == PackageManager.PERMISSION_GRANTED
 
-/** App-owned folder (no permission needed). Push images here with `adb push <img> <this path>`. */
-fun wallpaperDropDir(context: Context): File =
-    File(context.getExternalFilesDir(Environment.DIRECTORY_PICTURES), "").apply { mkdirs() }
+/** The standard, user-visible Pictures folder — where the user drops wallpapers. */
+fun picturesPathLabel(): String =
+    @Suppress("DEPRECATION")
+    Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES).absolutePath
 
 /**
- * Pickable images: anything in the no-permission drop folder, plus the device gallery
- * ([MediaStore]) when photo access has been granted. Newest first, capped at [MAX_IMAGES].
+ * Pickable images: the device gallery ([MediaStore]) once photo access is granted. MediaStore
+ * indexes the standard Pictures folder (and the rest of the gallery), so dropping a file into
+ * Pictures makes it appear here — no app-specific folder needed. Newest first, capped at [MAX_IMAGES].
  */
-private fun loadPickableImages(context: Context): List<Uri> {
-    val dropped = runCatching {
-        wallpaperDropDir(context).listFiles { f -> f.isFile && f.extension.lowercase() in IMAGE_EXTS }
-            ?.sortedByDescending { it.lastModified() }
-            ?.map { Uri.fromFile(it) }
-            ?: emptyList()
-    }.getOrDefault(emptyList())
-
-    val gallery = if (hasImagePermission(context)) queryMediaImages(context) else emptyList()
-    return (dropped + gallery).take(MAX_IMAGES)
-}
+private fun loadPickableImages(context: Context): List<Uri> =
+    if (hasImagePermission(context)) queryMediaImages(context) else emptyList()
 
 private fun queryMediaImages(context: Context): List<Uri> = runCatching {
     val collection = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
@@ -159,13 +150,13 @@ fun ImagePickerDialog(onPick: (Uri) -> Unit, onDismiss: () -> Unit) {
 
                 if (images.isEmpty()) {
                     val hint = buildString {
-                        append("No photos found on this device. ")
-                        if (!granted) append("Grant photo access to browse your gallery, or ")
-                        append("copy images into:")
+                        append("No photos found. ")
+                        if (!granted) append("Grant photo access to pick from your photos, or ")
+                        append("add images to your Pictures folder:")
                     }
                     Text(hint, color = Color.White.copy(alpha = 0.7f), fontSize = 15.sp)
                     Text(
-                        wallpaperDropDir(context).absolutePath,
+                        picturesPathLabel(),
                         color = Color.White.copy(alpha = 0.5f),
                         fontSize = 13.sp,
                     )

@@ -27,9 +27,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.layer.drawLayer
+import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
@@ -100,21 +103,33 @@ fun LauncherScreen(
     val imagePath = settings.wallpaperImagePath
     val showImage = settings.useImageWallpaper && imagePath != null && remember(imagePath) { File(imagePath).exists() }
 
+    // Record the wallpaper into a layer so the dock can re-draw it blurred as a frosted backdrop.
+    val backdrop = rememberGraphicsLayer()
+
     Box(modifier = modifier.fillMaxSize()) {
-        if (showImage && imagePath != null) {
-            ImageWallpaper(
-                path = imagePath,
-                blurred = settings.blurred,
-                modifier = Modifier.fillMaxSize(),
-            )
-        } else {
-            AnimatedWallpaper(
-                preset = preset,
-                animated = settings.animated,
-                blurred = settings.blurred,
-                ambient = ambient,
-                modifier = Modifier.fillMaxSize(),
-            )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .drawWithContent {
+                    backdrop.record { this@drawWithContent.drawContent() }
+                    drawLayer(backdrop)
+                },
+        ) {
+            if (showImage && imagePath != null) {
+                ImageWallpaper(
+                    path = imagePath,
+                    blurred = settings.blurred,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } else {
+                AnimatedWallpaper(
+                    preset = preset,
+                    animated = settings.animated,
+                    blurred = settings.blurred,
+                    ambient = ambient,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
         }
 
         // The settings page takes over the whole screen (not a modal), so D-pad focus can't reach
@@ -147,6 +162,7 @@ fun LauncherScreen(
                             onToggleFavorite = viewModel::toggleFavorite,
                             onReorder = viewModel::setFavoritesOrder,
                             columns = settings.columns,
+                            backdrop = backdrop,
                             topFocusRequester = tuneFocus,
                             modifier = Modifier.fillMaxSize(),
                         )

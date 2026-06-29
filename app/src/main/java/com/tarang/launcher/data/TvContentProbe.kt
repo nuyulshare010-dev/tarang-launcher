@@ -23,6 +23,10 @@ data class TvProbeResult(
     val previewChannels: Int,
     val previewPrograms: Int,
     val watchNext: Int,
+    // How many of [previewPrograms] carry each asset (counted across all rows, not just samples).
+    val withPoster: Int,
+    val withVideo: Int,
+    val withIntent: Int,
     val perPackage: List<Pair<String, Int>>,
     val samples: List<TvProbeRow>,
     /** True only if reading preview programs itself was denied — the real "can't do it" signal. */
@@ -78,6 +82,9 @@ object TvContentProbe {
         val perPackage = linkedMapOf<String, Int>()
         val samples = mutableListOf<TvProbeRow>()
         var previewPrograms = -1
+        var withPoster = 0
+        var withVideo = 0
+        var withIntent = 0
         var blocked = false
         try {
             cr.query(
@@ -94,13 +101,19 @@ object TvContentProbe {
                 while (c.moveToNext()) {
                     val pkg = (pi.takeIf { it >= 0 }?.let { c.getString(it) }) ?: "?"
                     perPackage[pkg] = (perPackage[pkg] ?: 0) + 1
-                    if (samples.size < 12) {
+                    val hasPoster = poi >= 0 && !c.getString(poi).isNullOrBlank()
+                    val hasVideo = vi >= 0 && !c.getString(vi).isNullOrBlank()
+                    val hasIntent = ii >= 0 && !c.getString(ii).isNullOrBlank()
+                    if (hasPoster) withPoster++
+                    if (hasVideo) withVideo++
+                    if (hasIntent) withIntent++
+                    if (samples.size < 40) {
                         samples += TvProbeRow(
                             pkg = pkg,
                             title = (ti.takeIf { it >= 0 }?.let { c.getString(it) }).orEmpty(),
-                            poster = poi >= 0 && !c.getString(poi).isNullOrBlank(),
-                            video = vi >= 0 && !c.getString(vi).isNullOrBlank(),
-                            intent = ii >= 0 && !c.getString(ii).isNullOrBlank(),
+                            poster = hasPoster,
+                            video = hasVideo,
+                            intent = hasIntent,
                         )
                     }
                 }
@@ -115,6 +128,9 @@ object TvContentProbe {
             previewChannels = previewChannels,
             previewPrograms = previewPrograms,
             watchNext = watchNext,
+            withPoster = withPoster,
+            withVideo = withVideo,
+            withIntent = withIntent,
             perPackage = perPackage.entries.map { it.key to it.value },
             samples = samples,
             blocked = blocked,

@@ -3,15 +3,20 @@ package com.tarang.launcher.ui
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -19,13 +24,21 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEvent
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -40,13 +53,15 @@ import androidx.tv.material3.Text
 import com.tarang.launcher.data.TV_LISTINGS_PERMISSION
 import com.tarang.launcher.data.TvContentProbe
 import com.tarang.launcher.data.TvProbeResult
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
  * Diagnostic overlay for the "can apps feed a content carousel?" spike. Runs [TvContentProbe] and
  * reports, in plain language, whether the TvProvider rows are readable, blocked, or empty on this
- * device. Sideload onto the real Chromecast and open it to get the verdict.
+ * device. The detail area is D-pad scrollable (focus it and press up/down).
  */
 @Composable
 fun TvProbeDialog(onDismiss: () -> Unit) {
@@ -62,6 +77,9 @@ fun TvProbeDialog(onDismiss: () -> Unit) {
             value = withContext(Dispatchers.IO) { TvContentProbe.run(context) }
         }
         val firstFocus = remember { FocusRequester() }
+        val scroll = rememberScrollState()
+        val scope = rememberCoroutineScope()
+        var detailFocused by remember { mutableStateOf(false) }
 
         Box(
             modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.82f)),
@@ -69,12 +87,12 @@ fun TvProbeDialog(onDismiss: () -> Unit) {
         ) {
             Column(
                 modifier = Modifier
-                    .fillMaxWidth(0.8f)
-                    .heightIn(max = 480.dp)
+                    .fillMaxWidth(0.82f)
+                    .fillMaxHeight(0.86f)
                     .clip(RoundedCornerShape(24.dp))
                     .background(Color(0xFF141417))
                     .padding(32.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Text("TV content probe", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.SemiBold)
 
@@ -85,36 +103,81 @@ fun TvProbeDialog(onDismiss: () -> Unit) {
                     val verdict = verdictOf(r)
                     Text(verdict.first, color = verdict.second, fontSize = 16.sp, fontWeight = FontWeight.Medium)
 
-                    Mono("READ_TV_LISTINGS: ${if (r.permissionGranted) "granted" else "NOT granted"}")
-                    Mono("preview channels: ${fmt(r.previewChannels)}    preview programs: ${fmt(r.previewPrograms)}    watch-next: ${fmt(r.watchNext)}")
-                    r.error?.let { Mono("error: $it", Color(0xFFFF8A80)) }
-
-                    if (r.perPackage.isNotEmpty()) {
-                        Mono("by app:")
-                        r.perPackage.take(8).forEach { (pkg, n) -> Mono("  • $pkg — $n") }
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        ProbeButton("Rescan", Modifier.focusRequester(firstFocus)) { reloadKey++ }
+                        if (!r.permissionGranted) {
+                            ProbeButton("Request permission") { permLauncher.launch(TV_LISTINGS_PERMISSION) }
+                        }
+                        ProbeButton("Close") { onDismiss() }
                     }
-                    if (r.samples.isNotEmpty()) {
-                        Mono("samples [P=poster V=video I=intent]:")
-                        r.samples.forEach { s ->
-                            val flags = buildString {
-                                if (s.poster) append("P"); if (s.video) append("V"); if (s.intent) append("I")
+
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .border(
+                                1.dp,
+                                if (detailFocused) Color.White.copy(alpha = 0.35f) else Color.White.copy(alpha = 0.08f),
+                                RoundedCornerShape(12.dp),
+                            )
+                            .onFocusChanged { detailFocused = it.isFocused }
+                            .onKeyEvent { handleScrollKey(it, scroll, scope) }
+                            .focusable()
+                            .verticalScroll(scroll)
+                            .padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Mono("READ_TV_LISTINGS: ${if (r.permissionGranted) "granted" else "NOT granted"}")
+                        Mono("channels: ${fmt(r.previewChannels)}    programs: ${fmt(r.previewPrograms)}    watch-next: ${fmt(r.watchNext)}")
+                        Mono(
+                            "of ${fmt(r.previewPrograms)} programs →  video: ${r.withVideo}    poster: ${r.withPoster}    intent: ${r.withIntent}",
+                            Color(0xFF80E27E),
+                        )
+                        r.error?.let { Mono("error: $it", Color(0xFFFF8A80)) }
+
+                        if (r.perPackage.isNotEmpty()) {
+                            Mono("")
+                            Mono("by app:")
+                            r.perPackage.forEach { (pkg, n) -> Mono("  • $pkg — $n") }
+                        }
+                        if (r.samples.isNotEmpty()) {
+                            Mono("")
+                            Mono("samples [P=poster V=video I=intent]:")
+                            r.samples.forEach { s ->
+                                val flags = buildString {
+                                    if (s.poster) append("P"); if (s.video) append("V"); if (s.intent) append("I")
+                                }
+                                Mono("  • [${flags.ifEmpty { "-" }}] ${s.pkg}: ${s.title.take(44)}")
                             }
-                            Mono("  • [${flags.ifEmpty { "-" }}] ${s.pkg}: ${s.title.take(40)}")
                         }
                     }
-                }
 
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(top = 6.dp)) {
-                    ProbeButton("Rescan", Modifier.focusRequester(firstFocus)) { reloadKey++ }
-                    if (r != null && !r.permissionGranted) {
-                        ProbeButton("Request permission") { permLauncher.launch(TV_LISTINGS_PERMISSION) }
-                    }
-                    ProbeButton("Close") { onDismiss() }
+                    Text(
+                        if (detailFocused) "▲ ▼ scroll details   ·   Back to close" else "Focus the panel and press ▼ to scroll   ·   Back to close",
+                        color = Color.White.copy(alpha = 0.4f),
+                        fontSize = 12.sp,
+                    )
                 }
             }
         }
 
         LaunchedEffect(Unit) { runCatching { firstFocus.requestFocus() } }
+    }
+}
+
+/** Scroll the detail panel on D-pad up/down; return false at the ends so focus can leave the panel. */
+private fun handleScrollKey(
+    e: KeyEvent,
+    scroll: androidx.compose.foundation.ScrollState,
+    scope: CoroutineScope,
+): Boolean {
+    if (e.type != KeyEventType.KeyDown) return false
+    val step = 260f
+    return when (e.key) {
+        Key.DirectionDown -> if (scroll.canScrollForward) { scope.launch { scroll.animateScrollBy(step) }; true } else false
+        Key.DirectionUp -> if (scroll.canScrollBackward) { scope.launch { scroll.animateScrollBy(-step) }; true } else false
+        else -> false
     }
 }
 

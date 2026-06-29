@@ -19,6 +19,9 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
+            // Sign release with the debug key so it can be sideloaded directly (this is a personal
+            // launcher, not a Play Store app). A release build is far faster than debug on-device.
+            signingConfig = signingConfigs.getByName("debug")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",

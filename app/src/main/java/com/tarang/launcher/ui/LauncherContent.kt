@@ -27,9 +27,20 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TileMode
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.layer.GraphicsLayer
+import androidx.compose.ui.graphics.layer.drawLayer
+import androidx.compose.ui.graphics.rememberGraphicsLayer
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
@@ -87,6 +98,7 @@ fun LauncherContent(
     onToggleFavorite: (String) -> Unit,
     onReorder: (List<String>) -> Unit,
     columns: Int,
+    backdrop: GraphicsLayer,
     modifier: Modifier = Modifier,
     topFocusRequester: FocusRequester? = null,
 ) {
@@ -96,10 +108,23 @@ fun LauncherContent(
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
 
+    // Frosted dock: re-draw the recorded wallpaper [backdrop] blurred, behind the dock. Blur is
+    // API 31+; older devices keep the plain translucent fill.
+    val dockBlur = rememberGraphicsLayer()
+    var dockOffset by remember { mutableStateOf(Offset.Zero) }
+    val supportsBlur = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S
+    val blurPx = with(LocalDensity.current) { 24.dp.toPx() }
+
     // Move mode operates on a local working copy of the dock; it's committed (or abandoned) on exit.
     var movingPackage by remember { mutableStateOf<String?>(null) }
     var workingDock by remember(dockApps) { mutableStateOf(dockApps) }
     val shownDock = if (movingPackage != null) workingDock else dockApps
+
+    // Long-press opens a context menu for the app (favorite/unfavorite, and reorder for dock apps).
+    var menuApp by remember { mutableStateOf<AppInfo?>(null) }
+    val openMenu: (String) -> Unit = { pkg ->
+        menuApp = (dockApps + gridApps).firstOrNull { it.packageName == pkg }
+    }
 
     fun moveBy(dir: Int) {
         val cur = workingDock.indexOfFirst { it.packageName == movingPackage }
@@ -142,9 +167,23 @@ fun LauncherContent(
                             // When focus returns to the dock, scroll back to the top so the dock
                             // sits pinned at the bottom (showing the full top gap).
                             .onFocusChanged { if (it.hasFocus) scope.launch { listState.animateScrollToItem(0) } }
+                            .onGloballyPositioned { dockOffset = it.positionInRoot() }
                             .clip(DockShape)
-                            .background(Color.White.copy(alpha = 0.06f))
-                            .border(1.dp, Color.White.copy(alpha = 0.08f), DockShape)
+                            .drawBehind {
+                                if (supportsBlur) {
+                                    // Re-draw the wallpaper layer, shifted so the slice behind the
+                                    // dock lines up, then blur it — true frosted-glass backdrop.
+                                    dockBlur.renderEffect = BlurEffect(blurPx, blurPx, TileMode.Clamp)
+                                    dockBlur.record {
+                                        translate(-dockOffset.x, -dockOffset.y) { drawLayer(backdrop) }
+                                    }
+                                    drawLayer(dockBlur)
+                                    drawRect(Color.White.copy(alpha = 0.10f))
+                                } else {
+                                    drawRect(Color.White.copy(alpha = 0.06f))
+                                }
+                            }
+                            .border(1.dp, Color.White.copy(alpha = 0.10f), DockShape)
                             .padding(DockPad),
                     ) {
                         AppRow(
@@ -152,7 +191,7 @@ fun LauncherContent(
                             iconLoader = iconLoader,
                             onAppFocused = onAppFocused,
                             onAppClicked = onAppClicked,
-                            onAppLongPressed = { movingPackage = it }, // lift into move mode
+                            onAppLongPressed = openMenu, // long-press a dock tile -> context menu
                             tileWidth = dockTileW,
                             tileHeight = dockTileH,
                             firstCardFocusRequester = firstCard,
@@ -171,7 +210,7 @@ fun LauncherContent(
                     iconLoader = iconLoader,
                     onAppFocused = onAppFocused,
                     onAppClicked = onAppClicked,
-                    onAppLongPressed = onToggleFavorite, // long-press a grid tile to pin it
+                    onAppLongPressed = openMenu, // long-press a grid tile -> context menu
                     tileWidth = gridTileW,
                     tileHeight = gridTileH,
                     firstCardFocusRequester = if (!hasDock && index == 0) firstCard else null,
@@ -185,6 +224,19 @@ fun LauncherContent(
         if (movingPackage != null) {
             MoveHint(modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 24.dp))
         }
+    }
+
+    menuApp?.let { app ->
+        AppContextMenu(
+            appLabel = app.label,
+            isFavorite = dockApps.any { it.packageName == app.packageName },
+            onToggleFavorite = { onToggleFavorite(app.packageName) },
+            onMove = {
+                movingPackage = app.packageName // enter move mode for this dock tile
+                menuApp = null
+            },
+            onDismiss = { menuApp = null },
+        )
     }
 
     val firstPackage = dockApps.firstOrNull()?.packageName ?: gridApps.firstOrNull()?.packageName
