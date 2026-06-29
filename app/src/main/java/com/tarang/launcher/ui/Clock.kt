@@ -27,7 +27,7 @@ fun Clock(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val use24h = remember { DateFormat.is24HourFormat(context) }
     val timeFormat = remember(use24h) { SimpleDateFormat(if (use24h) "HH:mm" else "h:mm", Locale.getDefault()) }
-    val dateFormat = remember { SimpleDateFormat("EEE, MMM d", Locale.getDefault()) }
+    val dateFormat = remember { SimpleDateFormat("EEE, d MMM", Locale.getDefault()) }
 
     var now by remember { mutableStateOf(Date(System.currentTimeMillis())) }
     LaunchedEffectMinuteTick { now = Date(System.currentTimeMillis()) }
