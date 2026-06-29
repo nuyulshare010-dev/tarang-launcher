@@ -102,6 +102,7 @@ fun LauncherContent(
     modifier: Modifier = Modifier,
     topFocusRequester: FocusRequester? = null,
     onFavoriteHover: (String?) -> Unit = {},
+    accent: Color? = null,
 ) {
     val gridRows = remember(gridApps, columns) { gridApps.chunked(columns) }
     val firstCard = remember { FocusRequester() }
@@ -109,13 +110,6 @@ fun LauncherContent(
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     val colors = LocalLauncherColors.current
-
-    // Frosted dock: re-draw the recorded wallpaper [backdrop] blurred, behind the dock. Blur is
-    // API 31+; older devices keep the plain translucent fill.
-    val dockBlur = rememberGraphicsLayer()
-    var dockOffset by remember { mutableStateOf(Offset.Zero) }
-    val supportsBlur = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S
-    val blurPx = with(LocalDensity.current) { 24.dp.toPx() }
 
     // Move mode operates on a local working copy of the dock; it's committed (or abandoned) on exit.
     var movingPackage by remember { mutableStateOf<String?>(null) }
@@ -172,23 +166,7 @@ fun LauncherContent(
                             .onFocusChanged {
                                 if (it.hasFocus) scope.launch { listState.animateScrollToItem(0) } else onFavoriteHover(null)
                             }
-                            .onGloballyPositioned { dockOffset = it.positionInRoot() }
-                            .clip(DockShape)
-                            .drawBehind {
-                                if (supportsBlur) {
-                                    // Re-draw the wallpaper layer, shifted so the slice behind the
-                                    // dock lines up, then blur it — true frosted-glass backdrop.
-                                    dockBlur.renderEffect = BlurEffect(blurPx, blurPx, TileMode.Clamp)
-                                    dockBlur.record {
-                                        translate(-dockOffset.x, -dockOffset.y) { drawLayer(backdrop) }
-                                    }
-                                    drawLayer(dockBlur)
-                                    drawRect(colors.chrome)
-                                } else {
-                                    drawRect(colors.chrome)
-                                }
-                            }
-                            .border(1.dp, colors.line, DockShape)
+                            .frostedGlass(backdrop, DockShape, tint = colors.chrome, accent = accent)
                             .padding(DockPad),
                     ) {
                         AppRow(

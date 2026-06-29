@@ -35,6 +35,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.platform.LocalContext
@@ -180,7 +181,7 @@ fun LauncherScreen(
             )
         } else {
             Column(modifier = Modifier.fillMaxSize()) {
-                TopBar(onOpenSettings = { showSettings = true }, tuneFocus = tuneFocus)
+                TopBar(onOpenSettings = { showSettings = true }, tuneFocus = tuneFocus, backdrop = backdrop)
                 Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                     when {
                         uiState.isLoading -> Centered { Text("Loading apps…", color = colors.text, fontSize = 20.sp) }
@@ -197,6 +198,7 @@ fun LauncherScreen(
                             backdrop = backdrop,
                             topFocusRequester = tuneFocus,
                             onFavoriteHover = { favoriteHover = it },
+                            accent = ambient,
                             modifier = Modifier.fillMaxSize(),
                         )
                     }
@@ -216,7 +218,7 @@ fun LauncherScreen(
 }
 
 @Composable
-private fun TopBar(onOpenSettings: () -> Unit, tuneFocus: FocusRequester) {
+private fun TopBar(onOpenSettings: () -> Unit, tuneFocus: FocusRequester, backdrop: GraphicsLayer) {
     val context = LocalContext.current
     val net = rememberNetStatus()
     val colors = LocalLauncherColors.current
@@ -227,20 +229,17 @@ private fun TopBar(onOpenSettings: () -> Unit, tuneFocus: FocusRequester) {
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Each free-floating element carries its own backdrop container so text stays legible over
+        // Each free-floating element is its own frosted-glass container, so text stays legible over
         // any wallpaper without scrimming the whole image.
         Clock(
             modifier = Modifier
-                .clip(RoundedCornerShape(16.dp))
-                .background(colors.textBackdrop)
+                .frostedGlass(backdrop, RoundedCornerShape(18.dp), tint = colors.textBackdrop)
                 .padding(horizontal = 16.dp, vertical = 8.dp),
         )
         // Status pill: Wi-Fi indicator + Android settings + launcher (tune) settings.
         Row(
             modifier = Modifier
-                .clip(RoundedCornerShape(percent = 50))
-                .background(colors.textBackdrop)
-                .border(1.dp, colors.line, RoundedCornerShape(percent = 50))
+                .frostedGlass(backdrop, RoundedCornerShape(percent = 50), tint = colors.textBackdrop)
                 .padding(horizontal = 8.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically,
