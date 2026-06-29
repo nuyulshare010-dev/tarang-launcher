@@ -177,6 +177,8 @@ fun LauncherScreen(
                 onToggleArtworkApp = viewModel::setArtworkApp,
                 theme = settings.theme,
                 onTheme = viewModel::setTheme,
+                showContinueRow = settings.showContinueRow,
+                onShowContinueRow = viewModel::setShowContinueRow,
                 onClose = { showSettings = false },
             )
         } else {
@@ -199,6 +201,9 @@ fun LauncherScreen(
                             topFocusRequester = tuneFocus,
                             onFavoriteHover = { favoriteHover = it },
                             accent = ambient,
+                            watchNext = uiState.watchNext,
+                            showContinueRow = settings.showContinueRow,
+                            onWatchNextClick = { viewModel.launchWatchNext(it) },
                             modifier = Modifier.fillMaxSize(),
                         )
                     }

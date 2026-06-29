@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import com.tarang.launcher.data.AppInfo
 import com.tarang.launcher.data.IconLoader
+import com.tarang.launcher.data.WatchNextItem
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 
@@ -57,6 +58,9 @@ private val DockPad = 20.dp // inner padding of the frosted dock container
 // view spec below won't scroll an already-visible item, the dock stays put here; it only scrolls
 // away when you move into the grid, letting the list use the full screen height without clipping.
 private val DockTopGap = 300.dp
+private val ContinueTopGap = 84.dp // smaller top gap when the Continue row occupies the upper area
+private val ContinueCardW = 220.dp // 16:9 poster cards (independent of grid column size)
+private val ContinueCardH = 124.dp
 
 /**
  * Minimal bring-into-view: don't move an item that's already fully visible (keeps the dock low on
@@ -103,9 +107,14 @@ fun LauncherContent(
     topFocusRequester: FocusRequester? = null,
     onFavoriteHover: (String?) -> Unit = {},
     accent: Color? = null,
+    watchNext: List<WatchNextItem> = emptyList(),
+    showContinueRow: Boolean = true,
+    onWatchNextClick: (WatchNextItem) -> Unit = {},
+    reduceMotion: Boolean = false,
 ) {
     val gridRows = remember(gridApps, columns) { gridApps.chunked(columns) }
     val firstCard = remember { FocusRequester() }
+    val firstContinueCard = remember { FocusRequester() }
     val hasDock = dockApps.isNotEmpty()
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
@@ -148,21 +157,38 @@ fun LauncherContent(
         val dockTileW = minOf(gridTileW, (availWidth - DockPad * 2 - TileGap * (dockCount - 1)) / dockCount)
         val dockTileH = dockTileW * TILE_ASPECT
 
+        // When the Continue row is shown it takes the upper area (above the dock), so the top gap
+        // shrinks; otherwise the dock stays pinned low with the empty top gap above it.
+        val continueShown = showContinueRow && watchNext.isNotEmpty()
+        val topGap = if (continueShown) ContinueTopGap else DockTopGap
+
         CompositionLocalProvider(LocalBringIntoViewSpec provides MinimalBringIntoView) {
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = SidePad, end = SidePad, top = DockTopGap, bottom = 56.dp),
+            contentPadding = PaddingValues(start = SidePad, end = SidePad, top = topGap, bottom = 56.dp),
             verticalArrangement = Arrangement.spacedBy(28.dp),
         ) {
+            if (continueShown) {
+                item(key = "continue") {
+                    ContinueRow(
+                        items = watchNext,
+                        cardWidth = ContinueCardW,
+                        cardHeight = ContinueCardH,
+                        onClick = onWatchNextClick,
+                        animate = !reduceMotion,
+                        upFocusRequester = topFocusRequester, // UP from Continue -> settings
+                        firstCardFocusRequester = firstContinueCard, // dock UP lands here
+                    )
+                }
+            }
             if (hasDock) {
                 item(key = "dock") {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            // When focus returns to the dock, scroll back to the top so the dock
-                            // sits pinned at the bottom (showing the full top gap). When focus
-                            // leaves the dock entirely, clear the artwork-wallpaper hover.
+                            // When focus returns to the dock, scroll back so the layout sits at the
+                            // top. When focus leaves the dock entirely, clear the artwork hover.
                             .onFocusChanged {
                                 if (it.hasFocus) scope.launch { listState.animateScrollToItem(0) } else onFavoriteHover(null)
                             }
@@ -179,7 +205,9 @@ fun LauncherContent(
                             tileWidth = dockTileW,
                             tileHeight = dockTileH,
                             firstCardFocusRequester = firstCard,
-                            upFocusRequester = topFocusRequester,
+                            // UP from the dock goes to the Continue row when it's shown, else the bar.
+                            // (Default focus search skips over the row to the top bar, so wire it.)
+                            upFocusRequester = if (continueShown) firstContinueCard else topFocusRequester,
                             movingPackage = movingPackage,
                             onMove = ::moveBy,
                             onRemoveFromDock = ::removeMoving,

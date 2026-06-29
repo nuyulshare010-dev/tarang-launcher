@@ -10,6 +10,14 @@ import kotlinx.coroutines.withContext
 /** Per-app counts of preview-program artwork available to drive a wallpaper slideshow. */
 data class AppArtwork(val packageName: String, val posters: Int, val videos: Int)
 
+/** A "Continue watching" entry from the system Watch Next row. */
+data class WatchNextItem(
+    val packageName: String,
+    val title: String,
+    val posterUri: String?,
+    val intentUri: String?,
+)
+
 /**
  * Reads the artwork that apps publish as home-screen preview programs (poster images, preview
  * videos) so it can be played as a wallpaper. Needs [TV_LISTINGS_PERMISSION]; returns empty when
@@ -18,6 +26,7 @@ data class AppArtwork(val packageName: String, val posters: Int, val videos: Int
  */
 object TvArtwork {
     private val PREVIEW = Uri.parse("content://android.media.tv/preview_program")
+    private val WATCH_NEXT = Uri.parse("content://android.media.tv/watch_next_program")
 
     private fun granted(context: Context) =
         ContextCompat.checkSelfPermission(context, TV_LISTINGS_PERMISSION) == PackageManager.PERMISSION_GRANTED
@@ -69,4 +78,35 @@ object TvArtwork {
             }
             out.toList()
         }
+
+    /** The system "Watch Next" (continue watching) entries, most-recently-engaged first. */
+    suspend fun watchNext(context: Context): List<WatchNextItem> = withContext(Dispatchers.IO) {
+        if (!granted(context)) return@withContext emptyList()
+        val rows = ArrayList<Pair<WatchNextItem, Long>>()
+        runCatching {
+            context.contentResolver.query(
+                WATCH_NEXT,
+                arrayOf("package_name", "title", "poster_art_uri", "intent_uri", "last_engagement_time_utc_millis"),
+                null, null, null,
+            )?.use { c ->
+                val pi = c.getColumnIndex("package_name")
+                val ti = c.getColumnIndex("title")
+                val poi = c.getColumnIndex("poster_art_uri")
+                val ii = c.getColumnIndex("intent_uri")
+                val ei = c.getColumnIndex("last_engagement_time_utc_millis")
+                while (c.moveToNext()) {
+                    val pkg = pi.takeIf { it >= 0 }?.let { c.getString(it) } ?: continue
+                    val item = WatchNextItem(
+                        packageName = pkg,
+                        title = (ti.takeIf { it >= 0 }?.let { c.getString(it) }).orEmpty(),
+                        posterUri = poi.takeIf { it >= 0 }?.let { c.getString(it) }?.ifBlank { null },
+                        intentUri = ii.takeIf { it >= 0 }?.let { c.getString(it) }?.ifBlank { null },
+                    )
+                    val ts = ei.takeIf { it >= 0 }?.let { runCatching { c.getLong(it) }.getOrDefault(0L) } ?: 0L
+                    rows.add(item to ts)
+                }
+            }
+        }
+        rows.sortedByDescending { it.second }.map { it.first }
+    }
 }

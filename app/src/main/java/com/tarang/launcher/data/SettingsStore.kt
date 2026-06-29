@@ -38,6 +38,8 @@ data class LauncherSettings(
     val artworkApps: Set<String> = emptySet(),
     /** Light/dark appearance. */
     val theme: ThemeMode = ThemeMode.DARK,
+    /** Show the "Continue watching" (Watch Next) row on the home screen. */
+    val showContinueRow: Boolean = true,
 )
 
 /** Persists [LauncherSettings] via DataStore. */
@@ -56,6 +58,7 @@ class SettingsStore(context: Context) {
             useAppArtwork = p[USE_APP_ARTWORK] ?: false,
             artworkApps = p[ARTWORK_APPS] ?: emptySet(),
             theme = runCatching { ThemeMode.valueOf(p[THEME] ?: "DARK") }.getOrDefault(ThemeMode.DARK),
+            showContinueRow = p[SHOW_CONTINUE_ROW] ?: true,
         )
     }
 
@@ -87,6 +90,7 @@ class SettingsStore(context: Context) {
     }
 
     suspend fun setTheme(mode: ThemeMode) = dataStore.edit { it[THEME] = mode.name }
+    suspend fun setShowContinueRow(value: Boolean) = dataStore.edit { it[SHOW_CONTINUE_ROW] = value }
 
     private companion object {
         val WALLPAPER_ID = intPreferencesKey("wallpaper_id")
@@ -98,5 +102,6 @@ class SettingsStore(context: Context) {
         val USE_APP_ARTWORK = booleanPreferencesKey("use_app_artwork")
         val ARTWORK_APPS = stringSetPreferencesKey("artwork_apps")
         val THEME = stringPreferencesKey("theme")
+        val SHOW_CONTINUE_ROW = booleanPreferencesKey("show_continue_row")
     }
 }

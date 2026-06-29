@@ -10,6 +10,7 @@ import com.tarang.launcher.data.AppRepository
 import com.tarang.launcher.data.FavoritesStore
 import com.tarang.launcher.data.LauncherSettings
 import com.tarang.launcher.data.SettingsStore
+import com.tarang.launcher.data.WatchNextItem
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -26,6 +27,7 @@ data class LauncherUiState(
     val gridApps: List<AppInfo> = emptyList(),
     val allApps: List<AppInfo> = emptyList(),
     val focusedPackage: String? = null,
+    val watchNext: List<WatchNextItem> = emptyList(),
 )
 
 @OptIn(FlowPreview::class)
@@ -38,9 +40,10 @@ class LauncherViewModel(
     private val apps = MutableStateFlow<List<AppInfo>>(emptyList())
     private val loading = MutableStateFlow(true)
     private val focusedPackage = MutableStateFlow<String?>(null)
+    private val watchNext = MutableStateFlow<List<WatchNextItem>>(emptyList())
 
     val uiState: StateFlow<LauncherUiState> =
-        combine(loading, apps, favoritesStore.favorites, focusedPackage) { isLoading, allApps, favorites, focused ->
+        combine(loading, apps, favoritesStore.favorites, focusedPackage, watchNext) { isLoading, allApps, favorites, focused, watchNextItems ->
             val favoriteSet = favorites.toSet()
             val dock = favorites.mapNotNull { pkg -> allApps.firstOrNull { it.packageName == pkg } }
             val grid = allApps.filterNot { it.packageName in favoriteSet }
@@ -50,6 +53,7 @@ class LauncherViewModel(
                 gridApps = grid,
                 allApps = allApps,
                 focusedPackage = focused,
+                watchNext = watchNextItems,
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LauncherUiState())
 
@@ -73,6 +77,7 @@ class LauncherViewModel(
             val loaded = repository.loadApps()
             apps.value = loaded
             loading.value = false
+            watchNext.value = repository.watchNext()
             if (!favoritesStore.seeded.first()) {
                 favoritesStore.setFavorites(loaded.take(DEFAULT_DOCK_COUNT).map { it.packageName })
                 favoritesStore.markSeeded()
@@ -85,6 +90,8 @@ class LauncherViewModel(
     }
 
     fun launchApp(packageName: String): Boolean = repository.launch(packageName)
+
+    fun launchWatchNext(item: WatchNextItem): Boolean = repository.launchWatchNext(item)
 
     fun toggleFavorite(packageName: String) {
         viewModelScope.launch { favoritesStore.toggle(packageName) }
@@ -106,6 +113,7 @@ class LauncherViewModel(
         viewModelScope.launch { settingsStore.setArtworkApp(packageName, enabled) }.let {}
     fun setTheme(mode: com.tarang.launcher.data.ThemeMode) =
         viewModelScope.launch { settingsStore.setTheme(mode) }.let {}
+    fun setShowContinueRow(value: Boolean) = viewModelScope.launch { settingsStore.setShowContinueRow(value) }.let {}
 
     companion object {
         private const val DEFAULT_DOCK_COUNT = 5

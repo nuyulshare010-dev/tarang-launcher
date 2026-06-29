@@ -87,6 +87,8 @@ fun SettingsScreen(
     onToggleArtworkApp: (String, Boolean) -> Unit,
     theme: ThemeMode,
     onTheme: (ThemeMode) -> Unit,
+    showContinueRow: Boolean,
+    onShowContinueRow: (Boolean) -> Unit,
     onClose: () -> Unit,
 ) {
     val colors = LocalLauncherColors.current
@@ -138,6 +140,8 @@ fun SettingsScreen(
                         onToggleArtworkApp = onToggleArtworkApp,
                         theme = theme,
                         onTheme = onTheme,
+                        showContinueRow = showContinueRow,
+                        onShowContinueRow = onShowContinueRow,
                     )
 
                     SettingsSection.DIAGNOSTICS -> DiagnosticsPane(onScanTvContent = onScanTvContent)
@@ -202,6 +206,8 @@ private fun AppearancePane(
     onToggleArtworkApp: (String, Boolean) -> Unit,
     theme: ThemeMode,
     onTheme: (ThemeMode) -> Unit,
+    showContinueRow: Boolean,
+    onShowContinueRow: (Boolean) -> Unit,
 ) {
     val thumb = rememberWallpaperThumb(settings.wallpaperImagePath)
     val imageActive = settings.useImageWallpaper
@@ -250,6 +256,12 @@ private fun AppearancePane(
             onUseAppArtwork = onUseAppArtwork,
             onToggleArtworkApp = onToggleArtworkApp,
         )
+
+        SectionLabel("Continue watching")
+        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            ToggleChip("Show", showContinueRow) { onShowContinueRow(true) }
+            ToggleChip("Hide", !showContinueRow) { onShowContinueRow(false) }
+        }
 
         SectionLabel("Tiles per row")
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
