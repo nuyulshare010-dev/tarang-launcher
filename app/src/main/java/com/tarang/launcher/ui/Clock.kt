@@ -32,16 +32,17 @@ fun Clock(modifier: Modifier = Modifier) {
     var now by remember { mutableStateOf(Date(System.currentTimeMillis())) }
     LaunchedEffectMinuteTick { now = Date(System.currentTimeMillis()) }
 
+    val colors = LocalLauncherColors.current
     Column(modifier = modifier) {
         Text(
             text = timeFormat.format(now),
-            color = Color.White,
+            color = colors.text,
             fontSize = 26.sp,
             fontWeight = FontWeight.SemiBold,
         )
         Text(
             text = dateFormat.format(now),
-            color = Color.White.copy(alpha = 0.55f),
+            color = colors.textDim,
             fontSize = 13.sp,
             fontWeight = FontWeight.Medium,
         )

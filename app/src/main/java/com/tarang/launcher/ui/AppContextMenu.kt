@@ -55,6 +55,7 @@ fun AppContextMenu(
 ) {
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         val titleFocus = remember { FocusRequester() }
+        val colors = LocalLauncherColors.current
         Box(
             modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.6f)),
             contentAlignment = Alignment.Center,
@@ -63,13 +64,13 @@ fun AppContextMenu(
                 modifier = Modifier
                     .fillMaxWidth(0.42f)
                     .clip(RoundedCornerShape(24.dp))
-                    .background(Color(0xFF1C1C20))
+                    .background(colors.panel)
                     .padding(28.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 Text(
                     text = appLabel,
-                    color = Color.White,
+                    color = colors.text,
                     fontSize = 22.sp,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier
@@ -94,7 +95,8 @@ fun AppContextMenu(
 @Composable
 private fun MenuRow(iconRes: Int, label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
     var focused by remember { mutableStateOf(false) }
-    val tint = if (focused) Color.Black else Color.White
+    val colors = LocalLauncherColors.current
+    val tint = if (focused) colors.onHighlight else colors.text
     Surface(
         onClick = onClick,
         modifier = modifier
@@ -103,8 +105,8 @@ private fun MenuRow(iconRes: Int, label: String, modifier: Modifier = Modifier, 
         shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(14.dp)),
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
         colors = ClickableSurfaceDefaults.colors(
-            containerColor = Color.White.copy(alpha = 0.06f),
-            focusedContainerColor = Color.White,
+            containerColor = colors.chip,
+            focusedContainerColor = colors.highlight,
         ),
     ) {
         Row(

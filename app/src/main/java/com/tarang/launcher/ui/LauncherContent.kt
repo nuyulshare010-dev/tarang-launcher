@@ -108,6 +108,7 @@ fun LauncherContent(
     val hasDock = dockApps.isNotEmpty()
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
+    val colors = LocalLauncherColors.current
 
     // Frosted dock: re-draw the recorded wallpaper [backdrop] blurred, behind the dock. Blur is
     // API 31+; older devices keep the plain translucent fill.
@@ -182,12 +183,12 @@ fun LauncherContent(
                                         translate(-dockOffset.x, -dockOffset.y) { drawLayer(backdrop) }
                                     }
                                     drawLayer(dockBlur)
-                                    drawRect(Color.White.copy(alpha = 0.10f))
+                                    drawRect(colors.chrome)
                                 } else {
-                                    drawRect(Color.White.copy(alpha = 0.06f))
+                                    drawRect(colors.chrome)
                                 }
                             }
-                            .border(1.dp, Color.White.copy(alpha = 0.10f), DockShape)
+                            .border(1.dp, colors.line, DockShape)
                             .padding(DockPad),
                     ) {
                         AppRow(
@@ -227,7 +228,7 @@ fun LauncherContent(
         }
 
         if (movingPackage != null) {
-            MoveHint(modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 24.dp))
+            MoveHint(colors = colors, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 24.dp))
         }
     }
 
@@ -251,16 +252,16 @@ fun LauncherContent(
 }
 
 @Composable
-private fun MoveHint(modifier: Modifier = Modifier) {
+private fun MoveHint(colors: LauncherColors, modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(percent = 50))
-            .background(Color.Black.copy(alpha = 0.72f))
+            .background(colors.panel)
             .padding(horizontal = 22.dp, vertical = 10.dp),
     ) {
         Text(
             text = "←  →  Move      ↑  Remove      OK  Done",
-            color = Color.White.copy(alpha = 0.85f),
+            color = colors.text,
             fontSize = 14.sp,
         )
     }

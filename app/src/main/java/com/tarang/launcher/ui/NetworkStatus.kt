@@ -81,9 +81,9 @@ private fun signalLevel(rssi: Int): Int = WifiManager.calculateSignalLevel(rssi,
  * cellular show full; no connection dims everything and adds a slash.
  */
 @Composable
-fun WifiIndicator(status: NetStatus, modifier: Modifier = Modifier) {
-    val bright = Color.White
-    val dim = Color.White.copy(alpha = 0.25f)
+fun WifiIndicator(status: NetStatus, modifier: Modifier = Modifier, tint: Color = Color.White) {
+    val bright = tint
+    val dim = tint.copy(alpha = 0.25f)
     val online = status.online && status.kind != NetKind.NONE
     val arcsOn = if (online) status.wifiLevel.coerceIn(0, 3) else 0
 

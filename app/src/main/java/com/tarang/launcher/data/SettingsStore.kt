@@ -18,6 +18,9 @@ const val MIN_COLUMNS = 3
 const val MAX_COLUMNS = 7
 const val DEFAULT_COLUMNS = 4
 
+/** Light/dark appearance. [AUTO] follows the time of day (light 7am–7pm, dark otherwise). */
+enum class ThemeMode { DARK, LIGHT, AUTO }
+
 /** User-tunable launcher look (set from the in-app settings panel). */
 data class LauncherSettings(
     val wallpaperId: Int = 0,
@@ -33,6 +36,8 @@ data class LauncherSettings(
     val useAppArtwork: Boolean = false,
     /** Packages (favorites) whose TV artwork is allowed to take over the wallpaper on hover. */
     val artworkApps: Set<String> = emptySet(),
+    /** Light/dark appearance. */
+    val theme: ThemeMode = ThemeMode.DARK,
 )
 
 /** Persists [LauncherSettings] via DataStore. */
@@ -50,6 +55,7 @@ class SettingsStore(context: Context) {
             wallpaperImagePath = p[IMAGE_PATH],
             useAppArtwork = p[USE_APP_ARTWORK] ?: false,
             artworkApps = p[ARTWORK_APPS] ?: emptySet(),
+            theme = runCatching { ThemeMode.valueOf(p[THEME] ?: "DARK") }.getOrDefault(ThemeMode.DARK),
         )
     }
 
@@ -80,6 +86,8 @@ class SettingsStore(context: Context) {
         p[ARTWORK_APPS] = if (enabled) current + packageName else current - packageName
     }
 
+    suspend fun setTheme(mode: ThemeMode) = dataStore.edit { it[THEME] = mode.name }
+
     private companion object {
         val WALLPAPER_ID = intPreferencesKey("wallpaper_id")
         val ANIMATED = booleanPreferencesKey("animated")
@@ -89,5 +97,6 @@ class SettingsStore(context: Context) {
         val IMAGE_PATH = stringPreferencesKey("wallpaper_image_path")
         val USE_APP_ARTWORK = booleanPreferencesKey("use_app_artwork")
         val ARTWORK_APPS = stringSetPreferencesKey("artwork_apps")
+        val THEME = stringPreferencesKey("theme")
     }
 }

@@ -9,6 +9,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -20,6 +21,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
@@ -55,6 +57,7 @@ import com.tarang.launcher.data.LauncherSettings
 import com.tarang.launcher.data.MAX_COLUMNS
 import com.tarang.launcher.data.MIN_COLUMNS
 import com.tarang.launcher.data.TV_LISTINGS_PERMISSION
+import com.tarang.launcher.data.ThemeMode
 import com.tarang.launcher.data.TvArtwork
 
 private enum class SettingsSection(val title: String) {
@@ -66,7 +69,8 @@ private enum class SettingsSection(val title: String) {
  * A full-screen, tvOS-style settings page: a section list on the left, the selected section's
  * controls on the right. Focusing a left item selects it (the detail follows focus); press RIGHT to
  * step into the controls, LEFT to come back, and Back to leave. Rendered in place of the launcher
- * (not as a modal), so D-pad focus can't leak to the grid behind it.
+ * (not as a modal), so D-pad focus can't leak to the grid behind it. Colors come from
+ * [LocalLauncherColors] so the page follows the light/dark theme.
  */
 @Composable
 fun SettingsScreen(
@@ -81,8 +85,11 @@ fun SettingsScreen(
     favoriteApps: List<AppInfo>,
     onUseAppArtwork: (Boolean) -> Unit,
     onToggleArtworkApp: (String, Boolean) -> Unit,
+    theme: ThemeMode,
+    onTheme: (ThemeMode) -> Unit,
     onClose: () -> Unit,
 ) {
+    val colors = LocalLauncherColors.current
     var section by remember { mutableStateOf(SettingsSection.APPEARANCE) }
     val firstSection = remember { FocusRequester() }
 
@@ -91,7 +98,7 @@ fun SettingsScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF0B0B0E).copy(alpha = 0.97f)),
+            .background(colors.page),
     ) {
         Row(
             modifier = Modifier
@@ -100,7 +107,7 @@ fun SettingsScreen(
         ) {
             // Left: section list.
             Column(modifier = Modifier.width(280.dp).fillMaxHeight()) {
-                Text("Settings", color = Color.White, fontSize = 34.sp, fontWeight = FontWeight.Bold)
+                Text("Settings", color = colors.text, fontSize = 34.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(28.dp))
                 SettingsSection.entries.forEachIndexed { i, s ->
                     SectionNavRow(
@@ -129,6 +136,8 @@ fun SettingsScreen(
                         favoriteApps = favoriteApps,
                         onUseAppArtwork = onUseAppArtwork,
                         onToggleArtworkApp = onToggleArtworkApp,
+                        theme = theme,
+                        onTheme = onTheme,
                     )
 
                     SettingsSection.DIAGNOSTICS -> DiagnosticsPane(onScanTvContent = onScanTvContent)
@@ -148,6 +157,7 @@ private fun SectionNavRow(
     onFocused: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val colors = LocalLauncherColors.current
     var focused by remember { mutableStateOf(false) }
     Surface(
         onClick = {},
@@ -160,13 +170,17 @@ private fun SectionNavRow(
         shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(12.dp)),
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
         colors = ClickableSurfaceDefaults.colors(
-            containerColor = if (active) Color.White.copy(alpha = 0.10f) else Color.Transparent,
-            focusedContainerColor = Color.White,
+            containerColor = if (active) colors.text.copy(alpha = 0.10f) else Color.Transparent,
+            focusedContainerColor = colors.highlight,
         ),
     ) {
         Text(
             text = title,
-            color = if (focused) Color.Black else Color.White.copy(alpha = if (active) 1f else 0.7f),
+            color = when {
+                focused -> colors.onHighlight
+                active -> colors.text
+                else -> colors.textDim
+            },
             fontSize = 19.sp,
             fontWeight = FontWeight.Medium,
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp),
@@ -186,6 +200,8 @@ private fun AppearancePane(
     favoriteApps: List<AppInfo>,
     onUseAppArtwork: (Boolean) -> Unit,
     onToggleArtworkApp: (String, Boolean) -> Unit,
+    theme: ThemeMode,
+    onTheme: (ThemeMode) -> Unit,
 ) {
     val thumb = rememberWallpaperThumb(settings.wallpaperImagePath)
     val imageActive = settings.useImageWallpaper
@@ -195,6 +211,16 @@ private fun AppearancePane(
         verticalArrangement = Arrangement.spacedBy(22.dp),
     ) {
         PaneTitle("Appearance")
+
+        SectionLabel("Theme")
+        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            ToggleChip("Dark", theme == ThemeMode.DARK) { onTheme(ThemeMode.DARK) }
+            ToggleChip("Light", theme == ThemeMode.LIGHT) { onTheme(ThemeMode.LIGHT) }
+            ToggleChip("Automatic", theme == ThemeMode.AUTO) { onTheme(ThemeMode.AUTO) }
+        }
+        if (theme == ThemeMode.AUTO) {
+            Text("Light from 7am to 7pm, dark otherwise.", color = LocalLauncherColors.current.textDim, fontSize = 13.sp)
+        }
 
         SectionLabel("Wallpaper")
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -260,6 +286,7 @@ private fun AppArtworkSection(
     onToggleArtworkApp: (String, Boolean) -> Unit,
 ) {
     val context = LocalContext.current
+    val colors = LocalLauncherColors.current
 
     SectionLabel("App artwork")
     Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -269,7 +296,7 @@ private fun AppArtworkSection(
     Text(
         "While you hover a favourite, its show/movie artwork plays as the wallpaper. " +
             "Add an app to favourites to use its artwork.",
-        color = Color.White.copy(alpha = 0.5f),
+        color = colors.textDim,
         fontSize = 13.sp,
         modifier = Modifier.fillMaxWidth(0.85f),
     )
@@ -282,7 +309,7 @@ private fun AppArtworkSection(
     }
     if (!granted) {
         val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { reload++ }
-        Text("Needs permission to read app artwork.", color = Color(0xFFFFE082), fontSize = 13.sp)
+        Text("Needs permission to read app artwork.", color = warningColor(colors.isDark), fontSize = 13.sp)
         ToggleChip("Grant permission", active = false) { launcher.launch(TV_LISTINGS_PERMISSION) }
         return
     }
@@ -292,11 +319,11 @@ private fun AppArtworkSection(
     }
     val avail = availability
     when {
-        avail == null -> Text("Scanning…", color = Color.White.copy(alpha = 0.5f), fontSize = 13.sp)
+        avail == null -> Text("Scanning…", color = colors.textDim, fontSize = 13.sp)
         else -> {
             val eligible = favoriteApps.filter { (avail[it.packageName]?.posters ?: 0) > 0 }
             if (eligible.isEmpty()) {
-                Text("None of your favourites publish artwork yet.", color = Color.White.copy(alpha = 0.5f), fontSize = 13.sp)
+                Text("None of your favourites publish artwork yet.", color = colors.textDim, fontSize = 13.sp)
             } else {
                 Column(
                     modifier = Modifier.fillMaxWidth(0.85f),
@@ -320,16 +347,17 @@ private fun AppArtworkSection(
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 private fun ArtworkAppRow(label: String, detail: String, on: Boolean, onClick: () -> Unit) {
+    val colors = LocalLauncherColors.current
     var focused by remember { mutableStateOf(false) }
-    val fg = if (focused) Color.Black else Color.White
+    val fg = if (focused) colors.onHighlight else colors.text
     Surface(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth().onFocusChanged { focused = it.isFocused },
         shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(12.dp)),
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
         colors = ClickableSurfaceDefaults.colors(
-            containerColor = Color.White.copy(alpha = 0.06f),
-            focusedContainerColor = Color.White,
+            containerColor = colors.chip,
+            focusedContainerColor = colors.highlight,
         ),
     ) {
         Row(
@@ -343,9 +371,9 @@ private fun ArtworkAppRow(label: String, detail: String, on: Boolean, onClick: (
             Text(
                 text = if (on) "On" else "Off",
                 color = when {
-                    focused -> Color.Black
-                    on -> Color(0xFF80E27E)
-                    else -> Color.White.copy(alpha = 0.5f)
+                    focused -> colors.onHighlight
+                    on -> okColor(colors.isDark)
+                    else -> colors.textDim
                 },
                 fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold,
@@ -364,6 +392,7 @@ private fun artworkDetail(art: AppArtwork?): String {
 
 @Composable
 private fun DiagnosticsPane(onScanTvContent: () -> Unit) {
+    val colors = LocalLauncherColors.current
     Column(verticalArrangement = Arrangement.spacedBy(22.dp)) {
         PaneTitle("Diagnostics")
 
@@ -371,7 +400,7 @@ private fun DiagnosticsPane(onScanTvContent: () -> Unit) {
         Text(
             "Check whether installed apps publish home-screen rows (channels & preview programs) " +
                 "this launcher can read — the basis for a content carousel.",
-            color = Color.White.copy(alpha = 0.6f),
+            color = colors.textDim,
             fontSize = 14.sp,
             modifier = Modifier.fillMaxWidth(0.7f),
         )
@@ -381,12 +410,12 @@ private fun DiagnosticsPane(onScanTvContent: () -> Unit) {
 
 @Composable
 private fun PaneTitle(text: String) {
-    Text(text, color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.SemiBold)
+    Text(text, color = LocalLauncherColors.current.text, fontSize = 26.sp, fontWeight = FontWeight.SemiBold)
 }
 
 @Composable
 private fun SectionLabel(text: String) {
-    Text(text, color = Color.White.copy(alpha = 0.6f), fontSize = 15.sp, fontWeight = FontWeight.Medium)
+    Text(text, color = LocalLauncherColors.current.textDim, fontSize = 15.sp, fontWeight = FontWeight.Medium)
 }
 
 @OptIn(ExperimentalTvMaterial3Api::class)
@@ -397,9 +426,10 @@ private fun PresetSwatch(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    var focused by remember { mutableStateOf(false) }
     Surface(
         onClick = onClick,
-        modifier = modifier.size(width = 72.dp, height = 44.dp),
+        modifier = modifier.size(width = 72.dp, height = 44.dp).onFocusChanged { focused = it.isFocused },
         shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(14.dp)),
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1.1f),
         colors = ClickableSurfaceDefaults.colors(containerColor = preset.base, focusedContainerColor = preset.base),
@@ -409,7 +439,8 @@ private fun PresetSwatch(
                 .fillMaxSize()
                 .background(Brush.linearGradient(listOf(preset.blobA, preset.blobB, preset.blobC))),
         ) {
-            if (selected) SelectedRing()
+            if (focused) FocusRing()
+            if (selected) SelectedBadge()
         }
     }
 }
@@ -422,14 +453,16 @@ private fun PhotoSwatch(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val colors = LocalLauncherColors.current
+    var focused by remember { mutableStateOf(false) }
     Surface(
         onClick = onClick,
-        modifier = modifier.size(width = 72.dp, height = 44.dp),
+        modifier = modifier.size(width = 72.dp, height = 44.dp).onFocusChanged { focused = it.isFocused },
         shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(14.dp)),
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1.1f),
         colors = ClickableSurfaceDefaults.colors(
-            containerColor = Color(0xFF2A2A2E),
-            focusedContainerColor = Color(0xFF3A3A40),
+            containerColor = colors.chip,
+            focusedContainerColor = colors.chip,
         ),
     ) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -441,39 +474,63 @@ private fun PhotoSwatch(
                     contentScale = ContentScale.Crop,
                 )
             } else {
-                Text("＋ Photo", color = Color.White.copy(alpha = 0.85f), fontSize = 12.sp, maxLines = 1, softWrap = false)
+                Text("＋ Photo", color = colors.text, fontSize = 12.sp, maxLines = 1, softWrap = false)
             }
-            if (selected) SelectedRing()
+            if (focused) FocusRing()
+            if (selected) SelectedBadge()
         }
     }
 }
 
+/** Focus (hover) indicator for swatches — a ring that appears only while focused. */
 @Composable
-private fun SelectedRing() {
+private fun FocusRing() {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .border(3.dp, Color.White, RoundedCornerShape(14.dp)),
+            .border(3.dp, LocalLauncherColors.current.text, RoundedCornerShape(14.dp)),
     )
+}
+
+/** Selected indicator for swatches — a check badge in the corner (distinct from the focus ring). */
+@Composable
+private fun BoxScope.SelectedBadge() {
+    val colors = LocalLauncherColors.current
+    Box(
+        modifier = Modifier
+            .align(Alignment.TopEnd)
+            .padding(5.dp)
+            .size(20.dp)
+            .background(colors.highlight, CircleShape),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text("✓", color = colors.onHighlight, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+    }
 }
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 private fun ToggleChip(label: String, active: Boolean, onClick: () -> Unit) {
+    val colors = LocalLauncherColors.current
+    var focused by remember { mutableStateOf(false) }
     Surface(
         onClick = onClick,
+        modifier = Modifier.onFocusChanged { focused = it.isFocused },
         shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(percent = 50)),
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1.05f),
         colors = ClickableSurfaceDefaults.colors(
-            containerColor = if (active) Color.White else Color(0xFF2A2A2E),
-            focusedContainerColor = if (active) Color.White else Color(0xFF3A3A40),
+            containerColor = if (active) colors.highlight else colors.chip,
+            focusedContainerColor = colors.highlight,
         ),
     ) {
         Text(
             text = label,
-            color = if (active) Color.Black else Color.White,
+            color = if (active || focused) colors.onHighlight else colors.text,
             fontSize = 15.sp,
             modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
         )
     }
 }
+
+private fun warningColor(isDark: Boolean) = if (isDark) Color(0xFFFFE082) else Color(0xFF8A6D00)
+private fun okColor(isDark: Boolean) = if (isDark) Color(0xFF80E27E) else Color(0xFF1B8A3A)

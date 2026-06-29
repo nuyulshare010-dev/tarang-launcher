@@ -37,18 +37,16 @@ private const val FADE_MS = 1200 // cross-fade between posters
  * gradient if the app has no readable posters (also see [ArtworkLoader] logs).
  */
 @Composable
-fun AppArtworkWallpaper(packageName: String, blurred: Boolean, modifier: Modifier = Modifier) {
+fun AppArtworkWallpaper(packageName: String, blurred: Boolean, isDark: Boolean, modifier: Modifier = Modifier) {
     val context = LocalContext.current
+    // Shuffle so a re-hover doesn't always open on the same poster.
     val uris by produceState<List<String>>(initialValue = emptyList(), key1 = packageName) {
-        value = TvArtwork.posterUris(context, packageName)
+        value = TvArtwork.posterUris(context, packageName).shuffled()
     }
 
     if (uris.isEmpty()) {
-        Box(
-            modifier = modifier.fillMaxSize().background(
-                Brush.verticalGradient(listOf(Color(0xFF0C0C10), Color(0xFF17171D))),
-            ),
-        )
+        val fallback = if (isDark) listOf(Color(0xFF0C0C10), Color(0xFF17171D)) else listOf(Color(0xFFECECF1), Color(0xFFDDDDE4))
+        Box(modifier = modifier.fillMaxSize().background(Brush.verticalGradient(fallback)))
         return
     }
 
@@ -82,16 +80,8 @@ fun AppArtworkWallpaper(packageName: String, blurred: Boolean, modifier: Modifie
                 )
             }
         }
-        // Legibility scrim (darker at top for the clock/pill, and bottom for the dock).
-        Box(
-            modifier = Modifier.fillMaxSize().background(
-                Brush.verticalGradient(
-                    0.0f to Color.Black.copy(alpha = 0.45f),
-                    0.45f to Color.Black.copy(alpha = 0.18f),
-                    1.0f to Color.Black.copy(alpha = 0.55f),
-                ),
-            ),
-        )
+        // Legibility scrim (theme-aware; darker at top for the clock/pill, and bottom for the dock).
+        ScrimOverlay(isDark)
     }
 }
 

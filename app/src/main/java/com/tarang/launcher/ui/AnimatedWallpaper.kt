@@ -52,6 +52,7 @@ fun AnimatedWallpaper(
     animated: Boolean,
     blurred: Boolean,
     ambient: Color?,
+    isDark: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val drift = remember { Animatable(0f) }
@@ -67,16 +68,20 @@ fun AnimatedWallpaper(
     }
     val accent by animateColorAsState(targetValue = ambient ?: preset.blobC, animationSpec = tween(1400), label = "accent")
 
+    // Light theme: a near-white base with the same hues as soft pastel washes (so dark text reads).
+    val base = if (isDark) preset.base else Color(0xFFECECF1)
+    val blobAlpha = if (isDark) floatArrayOf(0.40f, 0.34f, 0.30f) else floatArrayOf(0.22f, 0.20f, 0.18f)
+
     val canvasModifier = if (blurred) modifier.blurCompat(48.dp) else modifier
     Canvas(modifier = canvasModifier) {
         val d = drift.value
-        drawRect(preset.base)
+        drawRect(base)
         val w = size.width
         val h = size.height
         val r = size.maxDimension
-        blob(Offset(w * (0.22f + 0.12f * d), h * (0.18f + 0.12f * d)), r * 0.55f, preset.blobA.copy(alpha = 0.40f))
-        blob(Offset(w * (0.82f - 0.14f * d), h * (0.30f + 0.10f * d)), r * 0.50f, preset.blobB.copy(alpha = 0.34f))
-        blob(Offset(w * (0.55f + 0.12f * d), h * (0.92f - 0.12f * d)), r * 0.60f, accent.copy(alpha = 0.30f))
+        blob(Offset(w * (0.22f + 0.12f * d), h * (0.18f + 0.12f * d)), r * 0.55f, preset.blobA.copy(alpha = blobAlpha[0]))
+        blob(Offset(w * (0.82f - 0.14f * d), h * (0.30f + 0.10f * d)), r * 0.50f, preset.blobB.copy(alpha = blobAlpha[1]))
+        blob(Offset(w * (0.55f + 0.12f * d), h * (0.92f - 0.12f * d)), r * 0.60f, accent.copy(alpha = blobAlpha[2]))
     }
 }
 

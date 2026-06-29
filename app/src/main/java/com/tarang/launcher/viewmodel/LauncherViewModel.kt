@@ -104,6 +104,8 @@ class LauncherViewModel(
     fun setUseAppArtwork(value: Boolean) = viewModelScope.launch { settingsStore.setUseAppArtwork(value) }.let {}
     fun setArtworkApp(packageName: String, enabled: Boolean) =
         viewModelScope.launch { settingsStore.setArtworkApp(packageName, enabled) }.let {}
+    fun setTheme(mode: com.tarang.launcher.data.ThemeMode) =
+        viewModelScope.launch { settingsStore.setTheme(mode) }.let {}
 
     companion object {
         private const val DEFAULT_DOCK_COUNT = 5

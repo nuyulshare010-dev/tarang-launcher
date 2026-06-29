@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -33,6 +34,7 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.platform.LocalContext
@@ -116,7 +118,10 @@ fun LauncherScreen(
 
     // Record the wallpaper into a layer so the dock can re-draw it blurred as a frosted backdrop.
     val backdrop = rememberGraphicsLayer()
+    val isDark = rememberIsDark(settings.theme)
+    val colors = if (isDark) DarkLauncherColors else LightLauncherColors
 
+    CompositionLocalProvider(LocalLauncherColors provides colors) {
     Box(modifier = modifier.fillMaxSize()) {
         Box(
             modifier = Modifier
@@ -131,12 +136,14 @@ fun LauncherScreen(
                     app != null -> AppArtworkWallpaper(
                         packageName = app,
                         blurred = settings.blurred,
+                        isDark = isDark,
                         modifier = Modifier.fillMaxSize(),
                     )
 
                     showImage && imagePath != null -> ImageWallpaper(
                         path = imagePath,
                         blurred = settings.blurred,
+                        isDark = isDark,
                         modifier = Modifier.fillMaxSize(),
                     )
 
@@ -145,6 +152,7 @@ fun LauncherScreen(
                         animated = settings.animated,
                         blurred = settings.blurred,
                         ambient = ambient,
+                        isDark = isDark,
                         modifier = Modifier.fillMaxSize(),
                     )
                 }
@@ -166,6 +174,8 @@ fun LauncherScreen(
                 favoriteApps = uiState.dockApps,
                 onUseAppArtwork = viewModel::setUseAppArtwork,
                 onToggleArtworkApp = viewModel::setArtworkApp,
+                theme = settings.theme,
+                onTheme = viewModel::setTheme,
                 onClose = { showSettings = false },
             )
         } else {
@@ -173,8 +183,8 @@ fun LauncherScreen(
                 TopBar(onOpenSettings = { showSettings = true }, tuneFocus = tuneFocus)
                 Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                     when {
-                        uiState.isLoading -> Centered { Text("Loading apps…", color = Color.White, fontSize = 20.sp) }
-                        uiState.allApps.isEmpty() -> Centered { Text("No apps found", color = Color.White, fontSize = 20.sp) }
+                        uiState.isLoading -> Centered { Text("Loading apps…", color = colors.text, fontSize = 20.sp) }
+                        uiState.allApps.isEmpty() -> Centered { Text("No apps found", color = colors.text, fontSize = 20.sp) }
                         else -> LauncherContent(
                             dockApps = uiState.dockApps,
                             gridApps = uiState.gridApps,
@@ -202,12 +212,14 @@ fun LauncherScreen(
             TvProbeDialog(onDismiss = { showTvProbe = false })
         }
     }
+    }
 }
 
 @Composable
 private fun TopBar(onOpenSettings: () -> Unit, tuneFocus: FocusRequester) {
     val context = LocalContext.current
     val net = rememberNetStatus()
+    val colors = LocalLauncherColors.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -220,24 +232,34 @@ private fun TopBar(onOpenSettings: () -> Unit, tuneFocus: FocusRequester) {
         Row(
             modifier = Modifier
                 .clip(RoundedCornerShape(percent = 50))
-                .background(Color.White.copy(alpha = 0.06f))
-                .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(percent = 50))
+                .background(colors.chrome)
+                .border(1.dp, colors.line, RoundedCornerShape(percent = 50))
                 .padding(horizontal = 8.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             PillButton(onClick = { openWifiSettings(context) }, contentDescription = "Wi-Fi settings") {
-                WifiIndicator(status = net, modifier = Modifier.size(22.dp))
+                WifiIndicator(status = net, tint = colors.text, modifier = Modifier.size(22.dp))
             }
             PillButton(
                 onClick = onOpenSettings,
                 contentDescription = "Launcher settings",
                 modifier = Modifier.focusRequester(tuneFocus),
             ) {
-                Image(painterResource(R.drawable.ic_tune), contentDescription = null, modifier = Modifier.size(22.dp))
+                Image(
+                    painterResource(R.drawable.ic_tune),
+                    contentDescription = null,
+                    modifier = Modifier.size(22.dp),
+                    colorFilter = ColorFilter.tint(colors.text),
+                )
             }
             PillButton(onClick = { openAndroidSettings(context) }, contentDescription = "Android settings") {
-                Image(painterResource(R.drawable.ic_settings), contentDescription = null, modifier = Modifier.size(22.dp))
+                Image(
+                    painterResource(R.drawable.ic_settings),
+                    contentDescription = null,
+                    modifier = Modifier.size(22.dp),
+                    colorFilter = ColorFilter.tint(colors.text),
+                )
             }
         }
     }
@@ -251,6 +273,7 @@ private fun PillButton(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
+    val colors = LocalLauncherColors.current
     Surface(
         onClick = onClick,
         modifier = modifier
@@ -260,7 +283,7 @@ private fun PillButton(
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1.1f),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = Color.Transparent,
-            focusedContainerColor = Color.White.copy(alpha = 0.25f),
+            focusedContainerColor = colors.text.copy(alpha = 0.22f),
         ),
     ) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { content() }
