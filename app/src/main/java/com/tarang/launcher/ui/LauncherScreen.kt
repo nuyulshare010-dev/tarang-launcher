@@ -1,10 +1,14 @@
 package com.tarang.launcher.ui
 
+import android.app.ActivityOptions
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutLinearInEasing
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -21,6 +25,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -35,8 +40,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.rememberGraphicsLayer
@@ -44,12 +53,14 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
@@ -66,6 +77,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import kotlin.math.roundToInt
 
 /**
  * Top-level launcher UI: an animated wallpaper behind a clean app grid, with a top bar holding the
@@ -158,6 +170,68 @@ fun LauncherScreen(
         lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
             kotlinx.coroutines.delay(idleMs)
             screensaverOn = true
+        }
+    }
+
+    // App launch / return choreography. Launching hands the system a scale-up rooted at the tapped
+    // tile (so the app window grows out of it); coming back home eases the grid in from that same
+    // spot. Both are skipped when Reduce motion is on.
+    val view = LocalView.current
+    val enter = remember { Animatable(1f) } // 1 = home settled; 0 = zoomed-in "inside an app"
+    var launchOrigin by remember { mutableStateOf(Offset(0.5f, 0.5f)) } // fractional transform origin
+    var awaitingReturn by remember { mutableStateOf(false) }
+    var returnTick by remember { mutableIntStateOf(0) }
+    var launchTick by remember { mutableIntStateOf(0) }
+
+    fun launchApp(packageName: String, source: Rect) {
+        val animate = !settings.reduceMotion
+        val options = if (animate && source.width > 0f && source.height > 0f) {
+            if (view.width > 0 && view.height > 0) {
+                launchOrigin = Offset(
+                    (source.center.x / view.width).coerceIn(0f, 1f),
+                    (source.center.y / view.height).coerceIn(0f, 1f),
+                )
+            }
+            ActivityOptions.makeScaleUpAnimation(
+                view,
+                source.left.roundToInt(),
+                source.top.roundToInt(),
+                source.width.roundToInt(),
+                source.height.roundToInt(),
+            ).toBundle()
+        } else {
+            null
+        }
+        val launched = viewModel.launchApp(packageName, options)
+        if (launched && animate) {
+            awaitingReturn = true
+            launchTick++
+        }
+    }
+
+    // Coming back from a launched app: ease the grid in from the tile we left through.
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME && awaitingReturn) {
+                awaitingReturn = false
+                returnTick++
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    LaunchedEffect(launchTick) {
+        if (launchTick > 0) {
+            // Plays during the device's app-open latency so the click gets immediate feedback: the
+            // home zooms toward the tile and fades as the app takes over.
+            enter.animateTo(0f, tween(durationMillis = 340, easing = FastOutLinearInEasing))
+        }
+    }
+    LaunchedEffect(returnTick) {
+        if (returnTick > 0) {
+            // Return: start zoomed-in and scale back DOWN to rest while fading in.
+            enter.snapTo(0f)
+            enter.animateTo(1f, tween(durationMillis = 460, easing = FastOutSlowInEasing))
         }
     }
 
@@ -255,7 +329,20 @@ fun LauncherScreen(
                 onClose = { showSettings = false },
             )
         } else {
-            Column(modifier = Modifier.fillMaxSize()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        // p: 1 = settled, <1 = mid launch/return. Home zooms toward the launched tile
+                        // on the way out and scales back DOWN to rest (with a fade) on return.
+                        val p = enter.value
+                        alpha = p
+                        val s = 1f + (1f - p) * 0.16f
+                        scaleX = s
+                        scaleY = s
+                        transformOrigin = TransformOrigin(launchOrigin.x, launchOrigin.y)
+                    },
+            ) {
                 TopBar(
                     onOpenSettings = { showSettings = true },
                     tuneFocus = tuneFocus,
@@ -270,7 +357,7 @@ fun LauncherScreen(
                             gridApps = visibleGrid,
                             iconLoader = container.iconLoader,
                             onAppFocused = viewModel::onAppFocused,
-                            onAppClicked = { viewModel.launchApp(it) },
+                            onAppClicked = { pkg, sourceBounds -> launchApp(pkg, sourceBounds) },
                             onToggleFavorite = viewModel::toggleFavorite,
                             onReorder = viewModel::setFavoritesOrder,
                             columns = settings.columns,

@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.os.Bundle
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.provider.Settings
@@ -79,8 +80,11 @@ class AppRepository(private val context: Context) {
         pm.getLeanbackLaunchIntentForPackage(packageName)
             ?: pm.getLaunchIntentForPackage(packageName)
 
-    /** Launches [packageName]; returns false if no launch intent could be resolved. */
-    fun launch(packageName: String): Boolean {
+    /**
+     * Launches [packageName]; returns false if no launch intent could be resolved. [options] carries
+     * an ActivityOptions bundle (e.g. the tile scale-up launch animation) when one is supplied.
+     */
+    fun launch(packageName: String, options: Bundle? = null): Boolean {
         val intent = launchIntentFor(packageName)?.apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
@@ -88,7 +92,7 @@ class AppRepository(private val context: Context) {
             Log.w(TAG, "No launch intent for $packageName")
             return false
         }
-        return runCatching { context.startActivity(intent) }
+        return runCatching { context.startActivity(intent, options) }
             .onFailure { Log.w(TAG, "Failed to launch $packageName", it) }
             .isSuccess
     }

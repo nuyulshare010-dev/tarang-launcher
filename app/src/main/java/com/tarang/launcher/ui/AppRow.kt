@@ -8,6 +8,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
@@ -34,7 +35,7 @@ fun AppRow(
     apps: List<AppInfo>,
     iconLoader: IconLoader,
     onAppFocused: (String) -> Unit,
-    onAppClicked: (String) -> Unit,
+    onAppClicked: (String, Rect) -> Unit,
     onAppLongPressed: (String) -> Unit,
     tileWidth: Dp,
     tileHeight: Dp,
@@ -76,7 +77,7 @@ fun AppRow(
                 app = app,
                 iconLoader = iconLoader,
                 onFocused = { onAppFocused(app.packageName) },
-                onClick = { onAppClicked(app.packageName) },
+                onClick = { bounds -> onAppClicked(app.packageName, bounds) },
                 onLongClick = { onAppLongPressed(app.packageName) },
                 tileWidth = tileWidth,
                 tileHeight = tileHeight,

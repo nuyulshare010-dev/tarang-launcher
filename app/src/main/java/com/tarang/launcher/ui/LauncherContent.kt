@@ -31,6 +31,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.drawscope.translate
@@ -95,7 +96,7 @@ fun LauncherContent(
     gridApps: List<AppInfo>,
     iconLoader: IconLoader,
     onAppFocused: (String) -> Unit,
-    onAppClicked: (String) -> Unit,
+    onAppClicked: (String, Rect) -> Unit,
     onToggleFavorite: (String) -> Unit,
     onReorder: (List<String>) -> Unit,
     columns: Int,

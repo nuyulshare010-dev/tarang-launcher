@@ -91,7 +91,8 @@ class LauncherViewModel(
         if (_focusedPackage.value != packageName) _focusedPackage.value = packageName
     }
 
-    fun launchApp(packageName: String): Boolean = repository.launch(packageName)
+    fun launchApp(packageName: String, options: android.os.Bundle? = null): Boolean =
+        repository.launch(packageName, options)
 
     fun openAppInfo(packageName: String) = repository.openAppInfo(packageName)
 
