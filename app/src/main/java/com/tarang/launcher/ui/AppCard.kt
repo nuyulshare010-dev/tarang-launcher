@@ -1,6 +1,9 @@
 package com.tarang.launcher.ui
 
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -21,6 +24,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -73,12 +77,24 @@ fun AppCard(
         },
         label = "tileElevation",
     )
+    // Drive the focus scale ourselves (the TV Surface's built-in scale animates too slowly): a snappy
+    // spring up to a slightly larger size than before.
+    val scale by animateFloatAsState(
+        targetValue = when {
+            isMoving -> 1.14f
+            focused -> 1.12f
+            else -> 1f
+        },
+        animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium),
+        label = "tileScale",
+    )
 
     Surface(
         onClick = onClick,
         onLongClick = onLongClick,
         modifier = modifier
             .size(width = tileWidth, height = tileHeight)
+            .graphicsLayer { scaleX = scale; scaleY = scale }
             .alpha(if (dimmed) 0.4f else 1f)
             .shadow(elevation = elevation, shape = tileShape, clip = false)
             .then(
@@ -89,7 +105,7 @@ fun AppCard(
                 if (it.isFocused) onFocused()
             },
         shape = ClickableSurfaceDefaults.shape(tileShape),
-        scale = ClickableSurfaceDefaults.scale(focusedScale = if (isMoving) 1.12f else 1.1f),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = Color(0xFF2A2A2C),
             focusedContainerColor = Color(0xFF2A2A2C),

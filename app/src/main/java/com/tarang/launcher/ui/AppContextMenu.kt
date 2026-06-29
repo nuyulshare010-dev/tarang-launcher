@@ -36,6 +36,7 @@ import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import com.tarang.launcher.R
+import kotlinx.coroutines.delay
 
 /**
  * Long-press menu for an app tile: favorite/unfavorite (and reorder, for dock apps). A modal
@@ -51,6 +52,9 @@ fun AppContextMenu(
 ) {
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         val firstFocus = remember { FocusRequester() }
+        // The OK key-press that long-pressed the tile is still in flight when this opens; ignore
+        // actions for a moment so its release doesn't immediately trigger the focused item.
+        var armed by remember { mutableStateOf(false) }
         Box(
             modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.6f)),
             contentAlignment = Alignment.Center,
@@ -73,17 +77,21 @@ fun AppContextMenu(
 
                 if (isFavorite) {
                     MenuRow(R.drawable.ic_star, "Remove from favorites", Modifier.focusRequester(firstFocus)) {
-                        onToggleFavorite(); onDismiss()
+                        if (armed) { onToggleFavorite(); onDismiss() }
                     }
-                    MenuRow(R.drawable.ic_swap_horiz, "Move") { onMove() }
+                    MenuRow(R.drawable.ic_swap_horiz, "Move") { if (armed) onMove() }
                 } else {
                     MenuRow(R.drawable.ic_star_outline, "Add to favorites", Modifier.focusRequester(firstFocus)) {
-                        onToggleFavorite(); onDismiss()
+                        if (armed) { onToggleFavorite(); onDismiss() }
                     }
                 }
             }
         }
-        LaunchedEffect(Unit) { runCatching { firstFocus.requestFocus() } }
+        LaunchedEffect(Unit) {
+            runCatching { firstFocus.requestFocus() }
+            delay(300)
+            armed = true
+        }
     }
 }
 
