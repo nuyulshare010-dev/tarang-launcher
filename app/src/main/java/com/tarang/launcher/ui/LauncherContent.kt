@@ -101,6 +101,7 @@ fun LauncherContent(
     backdrop: GraphicsLayer,
     modifier: Modifier = Modifier,
     topFocusRequester: FocusRequester? = null,
+    onFavoriteHover: (String?) -> Unit = {},
 ) {
     val gridRows = remember(gridApps, columns) { gridApps.chunked(columns) }
     val firstCard = remember { FocusRequester() }
@@ -165,8 +166,11 @@ fun LauncherContent(
                         modifier = Modifier
                             .fillMaxWidth()
                             // When focus returns to the dock, scroll back to the top so the dock
-                            // sits pinned at the bottom (showing the full top gap).
-                            .onFocusChanged { if (it.hasFocus) scope.launch { listState.animateScrollToItem(0) } }
+                            // sits pinned at the bottom (showing the full top gap). When focus
+                            // leaves the dock entirely, clear the artwork-wallpaper hover.
+                            .onFocusChanged {
+                                if (it.hasFocus) scope.launch { listState.animateScrollToItem(0) } else onFavoriteHover(null)
+                            }
                             .onGloballyPositioned { dockOffset = it.positionInRoot() }
                             .clip(DockShape)
                             .drawBehind {
@@ -189,7 +193,8 @@ fun LauncherContent(
                         AppRow(
                             apps = shownDock,
                             iconLoader = iconLoader,
-                            onAppFocused = onAppFocused,
+                            // Dock = favorites: report which one is hovered so its artwork can play.
+                            onAppFocused = { onAppFocused(it); onFavoriteHover(it) },
                             onAppClicked = onAppClicked,
                             onAppLongPressed = openMenu, // long-press a dock tile -> context menu
                             tileWidth = dockTileW,

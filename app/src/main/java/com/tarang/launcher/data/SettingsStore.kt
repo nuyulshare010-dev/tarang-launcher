@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -28,6 +29,10 @@ data class LauncherSettings(
     val useImageWallpaper: Boolean = false,
     /** Absolute path to the user's chosen wallpaper, copied into app storage. */
     val wallpaperImagePath: String? = null,
+    /** Master switch: while hovering an opted-in favorite, play its artwork as the wallpaper. */
+    val useAppArtwork: Boolean = false,
+    /** Packages (favorites) whose TV artwork is allowed to take over the wallpaper on hover. */
+    val artworkApps: Set<String> = emptySet(),
 )
 
 /** Persists [LauncherSettings] via DataStore. */
@@ -43,6 +48,8 @@ class SettingsStore(context: Context) {
             columns = (p[COLUMNS] ?: DEFAULT_COLUMNS).coerceIn(MIN_COLUMNS, MAX_COLUMNS),
             useImageWallpaper = p[USE_IMAGE] ?: false,
             wallpaperImagePath = p[IMAGE_PATH],
+            useAppArtwork = p[USE_APP_ARTWORK] ?: false,
+            artworkApps = p[ARTWORK_APPS] ?: emptySet(),
         )
     }
 
@@ -65,6 +72,14 @@ class SettingsStore(context: Context) {
     /** Re-activates the already-stored photo without re-picking it. */
     suspend fun setUseImageWallpaper(value: Boolean) = dataStore.edit { it[USE_IMAGE] = value }
 
+    suspend fun setUseAppArtwork(value: Boolean) = dataStore.edit { it[USE_APP_ARTWORK] = value }
+
+    /** Opts a favorite package in/out of the artwork-on-hover wallpaper. */
+    suspend fun setArtworkApp(packageName: String, enabled: Boolean) = dataStore.edit { p ->
+        val current = p[ARTWORK_APPS] ?: emptySet()
+        p[ARTWORK_APPS] = if (enabled) current + packageName else current - packageName
+    }
+
     private companion object {
         val WALLPAPER_ID = intPreferencesKey("wallpaper_id")
         val ANIMATED = booleanPreferencesKey("animated")
@@ -72,5 +87,7 @@ class SettingsStore(context: Context) {
         val COLUMNS = intPreferencesKey("columns")
         val USE_IMAGE = booleanPreferencesKey("use_image_wallpaper")
         val IMAGE_PATH = stringPreferencesKey("wallpaper_image_path")
+        val USE_APP_ARTWORK = booleanPreferencesKey("use_app_artwork")
+        val ARTWORK_APPS = stringSetPreferencesKey("artwork_apps")
     }
 }

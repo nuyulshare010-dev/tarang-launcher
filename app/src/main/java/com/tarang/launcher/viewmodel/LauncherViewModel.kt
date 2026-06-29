@@ -101,6 +101,9 @@ class LauncherViewModel(
     fun setColumns(n: Int) = viewModelScope.launch { settingsStore.setColumns(n) }.let {}
     fun setImageWallpaper(path: String) = viewModelScope.launch { settingsStore.setImageWallpaper(path) }.let {}
     fun setUseImageWallpaper(value: Boolean) = viewModelScope.launch { settingsStore.setUseImageWallpaper(value) }.let {}
+    fun setUseAppArtwork(value: Boolean) = viewModelScope.launch { settingsStore.setUseAppArtwork(value) }.let {}
+    fun setArtworkApp(packageName: String, enabled: Boolean) =
+        viewModelScope.launch { settingsStore.setArtworkApp(packageName, enabled) }.let {}
 
     companion object {
         private const val DEFAULT_DOCK_COUNT = 5

@@ -21,6 +21,10 @@
          non-system launcher is actually allowed to read other packages' rows is what we're testing. -->
     <uses-permission android:name="android.permission.READ_TV_LISTINGS" />
 
+    <!-- App poster art (for artwork wallpapers) is often served from the web, so fetching it
+         needs network access. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <!-- TV app: no touchscreen; leanback optional so it still runs on phone/emulator. -->
     <uses-feature
         android:name="android.software.leanback"

@@ -1,6 +1,9 @@
 package com.tarang.launcher.ui
 
+import android.content.pm.PackageManager
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -16,11 +19,15 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -33,16 +40,22 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
+import com.tarang.launcher.data.AppArtwork
+import com.tarang.launcher.data.AppInfo
 import com.tarang.launcher.data.LauncherSettings
 import com.tarang.launcher.data.MAX_COLUMNS
 import com.tarang.launcher.data.MIN_COLUMNS
+import com.tarang.launcher.data.TV_LISTINGS_PERMISSION
+import com.tarang.launcher.data.TvArtwork
 
 private enum class SettingsSection(val title: String) {
     APPEARANCE("Appearance"),
@@ -65,6 +78,9 @@ fun SettingsScreen(
     onPickImage: () -> Unit,
     onUseImage: () -> Unit,
     onScanTvContent: () -> Unit,
+    favoriteApps: List<AppInfo>,
+    onUseAppArtwork: (Boolean) -> Unit,
+    onToggleArtworkApp: (String, Boolean) -> Unit,
     onClose: () -> Unit,
 ) {
     var section by remember { mutableStateOf(SettingsSection.APPEARANCE) }
@@ -110,6 +126,9 @@ fun SettingsScreen(
                         onColumns = onColumns,
                         onPickImage = onPickImage,
                         onUseImage = onUseImage,
+                        favoriteApps = favoriteApps,
+                        onUseAppArtwork = onUseAppArtwork,
+                        onToggleArtworkApp = onToggleArtworkApp,
                     )
 
                     SettingsSection.DIAGNOSTICS -> DiagnosticsPane(onScanTvContent = onScanTvContent)
@@ -164,11 +183,17 @@ private fun AppearancePane(
     onColumns: (Int) -> Unit,
     onPickImage: () -> Unit,
     onUseImage: () -> Unit,
+    favoriteApps: List<AppInfo>,
+    onUseAppArtwork: (Boolean) -> Unit,
+    onToggleArtworkApp: (String, Boolean) -> Unit,
 ) {
     val thumb = rememberWallpaperThumb(settings.wallpaperImagePath)
     val imageActive = settings.useImageWallpaper
 
-    Column(verticalArrangement = Arrangement.spacedBy(22.dp)) {
+    Column(
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(22.dp),
+    ) {
         PaneTitle("Appearance")
 
         SectionLabel("Wallpaper")
@@ -193,6 +218,13 @@ private fun AppearancePane(
             )
         }
 
+        AppArtworkSection(
+            settings = settings,
+            favoriteApps = favoriteApps,
+            onUseAppArtwork = onUseAppArtwork,
+            onToggleArtworkApp = onToggleArtworkApp,
+        )
+
         SectionLabel("Tiles per row")
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             for (n in MIN_COLUMNS..MAX_COLUMNS) {
@@ -212,6 +244,122 @@ private fun AppearancePane(
             ToggleChip("Sharp", !settings.blurred) { onBlurred(false) }
         }
     }
+}
+
+/**
+ * "App artwork" wallpaper controls: a master on/off, plus (when on) a per-favorite list of apps that
+ * publish poster artwork, each individually toggleable. Needs [TV_LISTINGS_PERMISSION] to read what
+ * apps publish; offers to grant it inline.
+ */
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+private fun AppArtworkSection(
+    settings: LauncherSettings,
+    favoriteApps: List<AppInfo>,
+    onUseAppArtwork: (Boolean) -> Unit,
+    onToggleArtworkApp: (String, Boolean) -> Unit,
+) {
+    val context = LocalContext.current
+
+    SectionLabel("App artwork")
+    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        ToggleChip("On", settings.useAppArtwork) { onUseAppArtwork(true) }
+        ToggleChip("Off", !settings.useAppArtwork) { onUseAppArtwork(false) }
+    }
+    Text(
+        "While you hover a favourite, its show/movie artwork plays as the wallpaper. " +
+            "Add an app to favourites to use its artwork.",
+        color = Color.White.copy(alpha = 0.5f),
+        fontSize = 13.sp,
+        modifier = Modifier.fillMaxWidth(0.85f),
+    )
+
+    if (!settings.useAppArtwork) return
+
+    var reload by remember { mutableIntStateOf(0) }
+    val granted = remember(reload) {
+        ContextCompat.checkSelfPermission(context, TV_LISTINGS_PERMISSION) == PackageManager.PERMISSION_GRANTED
+    }
+    if (!granted) {
+        val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { reload++ }
+        Text("Needs permission to read app artwork.", color = Color(0xFFFFE082), fontSize = 13.sp)
+        ToggleChip("Grant permission", active = false) { launcher.launch(TV_LISTINGS_PERMISSION) }
+        return
+    }
+
+    val availability by produceState<Map<String, AppArtwork>?>(initialValue = null, favoriteApps, reload) {
+        value = TvArtwork.availability(context)
+    }
+    val avail = availability
+    when {
+        avail == null -> Text("Scanning…", color = Color.White.copy(alpha = 0.5f), fontSize = 13.sp)
+        else -> {
+            val eligible = favoriteApps.filter { (avail[it.packageName]?.posters ?: 0) > 0 }
+            if (eligible.isEmpty()) {
+                Text("None of your favourites publish artwork yet.", color = Color.White.copy(alpha = 0.5f), fontSize = 13.sp)
+            } else {
+                Column(
+                    modifier = Modifier.fillMaxWidth(0.85f),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    eligible.forEach { app ->
+                        val on = app.packageName in settings.artworkApps
+                        ArtworkAppRow(
+                            label = app.label,
+                            detail = artworkDetail(avail[app.packageName]),
+                            on = on,
+                            onClick = { onToggleArtworkApp(app.packageName, !on) },
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+private fun ArtworkAppRow(label: String, detail: String, on: Boolean, onClick: () -> Unit) {
+    var focused by remember { mutableStateOf(false) }
+    val fg = if (focused) Color.Black else Color.White
+    Surface(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth().onFocusChanged { focused = it.isFocused },
+        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(12.dp)),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
+        colors = ClickableSurfaceDefaults.colors(
+            containerColor = Color.White.copy(alpha = 0.06f),
+            focusedContainerColor = Color.White,
+        ),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(label, color = fg, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                if (detail.isNotEmpty()) Text(detail, color = fg.copy(alpha = 0.6f), fontSize = 12.sp)
+            }
+            Text(
+                text = if (on) "On" else "Off",
+                color = when {
+                    focused -> Color.Black
+                    on -> Color(0xFF80E27E)
+                    else -> Color.White.copy(alpha = 0.5f)
+                },
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
+    }
+}
+
+private fun artworkDetail(art: AppArtwork?): String {
+    if (art == null) return ""
+    return buildList {
+        if (art.posters > 0) add("${art.posters} posters")
+        if (art.videos > 0) add("${art.videos} videos")
+    }.joinToString("  ·  ")
 }
 
 @Composable

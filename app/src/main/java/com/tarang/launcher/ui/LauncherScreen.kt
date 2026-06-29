@@ -4,6 +4,8 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -103,6 +105,15 @@ fun LauncherScreen(
     val imagePath = settings.wallpaperImagePath
     val showImage = settings.useImageWallpaper && imagePath != null && remember(imagePath) { File(imagePath).exists() }
 
+    // While hovering an opted-in favorite, its app artwork plays as the wallpaper; clears (back to the
+    // selected wallpaper) when focus leaves the dock. Not while the settings page is up.
+    var favoriteHover by remember { mutableStateOf<String?>(null) }
+    val artworkApp = if (!showSettings) {
+        favoriteHover?.takeIf { settings.useAppArtwork && it in settings.artworkApps }
+    } else {
+        null
+    }
+
     // Record the wallpaper into a layer so the dock can re-draw it blurred as a frosted backdrop.
     val backdrop = rememberGraphicsLayer()
 
@@ -115,20 +126,28 @@ fun LauncherScreen(
                     drawLayer(backdrop)
                 },
         ) {
-            if (showImage && imagePath != null) {
-                ImageWallpaper(
-                    path = imagePath,
-                    blurred = settings.blurred,
-                    modifier = Modifier.fillMaxSize(),
-                )
-            } else {
-                AnimatedWallpaper(
-                    preset = preset,
-                    animated = settings.animated,
-                    blurred = settings.blurred,
-                    ambient = ambient,
-                    modifier = Modifier.fillMaxSize(),
-                )
+            Crossfade(targetState = artworkApp, animationSpec = tween(700), label = "wallpaper") { app ->
+                when {
+                    app != null -> AppArtworkWallpaper(
+                        packageName = app,
+                        blurred = settings.blurred,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+
+                    showImage && imagePath != null -> ImageWallpaper(
+                        path = imagePath,
+                        blurred = settings.blurred,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+
+                    else -> AnimatedWallpaper(
+                        preset = preset,
+                        animated = settings.animated,
+                        blurred = settings.blurred,
+                        ambient = ambient,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
             }
         }
 
@@ -144,6 +163,9 @@ fun LauncherScreen(
                 onPickImage = pickImage,
                 onUseImage = { viewModel.setUseImageWallpaper(true) },
                 onScanTvContent = { showTvProbe = true },
+                favoriteApps = uiState.dockApps,
+                onUseAppArtwork = viewModel::setUseAppArtwork,
+                onToggleArtworkApp = viewModel::setArtworkApp,
                 onClose = { showSettings = false },
             )
         } else {
@@ -164,6 +186,7 @@ fun LauncherScreen(
                             columns = settings.columns,
                             backdrop = backdrop,
                             topFocusRequester = tuneFocus,
+                            onFavoriteHover = { favoriteHover = it },
                             modifier = Modifier.fillMaxSize(),
                         )
                     }
