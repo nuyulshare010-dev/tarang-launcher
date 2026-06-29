@@ -111,6 +111,7 @@ fun LauncherContent(
     showContinueRow: Boolean = true,
     onWatchNextClick: (WatchNextItem) -> Unit = {},
     reduceMotion: Boolean = false,
+    onHideApp: (String) -> Unit = {},
 ) {
     val gridRows = remember(gridApps, columns) { gridApps.chunked(columns) }
     val firstCard = remember { FocusRequester() }
@@ -204,6 +205,7 @@ fun LauncherContent(
                             onAppLongPressed = openMenu, // long-press a dock tile -> context menu
                             tileWidth = dockTileW,
                             tileHeight = dockTileH,
+                            reduceMotion = reduceMotion,
                             firstCardFocusRequester = firstCard,
                             // UP from the dock goes to the Continue row when it's shown, else the bar.
                             // (Default focus search skips over the row to the top bar, so wire it.)
@@ -225,6 +227,7 @@ fun LauncherContent(
                     onAppLongPressed = openMenu, // long-press a grid tile -> context menu
                     tileWidth = gridTileW,
                     tileHeight = gridTileH,
+                    reduceMotion = reduceMotion,
                     firstCardFocusRequester = if (!hasDock && index == 0) firstCard else null,
                     // Only the very top row sends UP to the settings button.
                     upFocusRequester = if (!hasDock && index == 0) topFocusRequester else null,
@@ -248,6 +251,7 @@ fun LauncherContent(
                 menuApp = null
             },
             onDismiss = { menuApp = null },
+            onHide = { onHideApp(app.packageName) }, // grid-only (menu hides it for favorites)
         )
     }
 

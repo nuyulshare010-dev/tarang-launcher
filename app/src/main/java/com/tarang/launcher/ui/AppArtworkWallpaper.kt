@@ -37,7 +37,13 @@ private const val FADE_MS = 1200 // cross-fade between posters
  * gradient if the app has no readable posters (also see [ArtworkLoader] logs).
  */
 @Composable
-fun AppArtworkWallpaper(packageName: String, blurred: Boolean, isDark: Boolean, modifier: Modifier = Modifier) {
+fun AppArtworkWallpaper(
+    packageName: String,
+    blurred: Boolean,
+    isDark: Boolean,
+    modifier: Modifier = Modifier,
+    reduceMotion: Boolean = false,
+) {
     val context = LocalContext.current
     // Shuffle so a re-hover doesn't always open on the same poster.
     val uris by produceState<List<String>>(initialValue = emptyList(), key1 = packageName) {
@@ -51,7 +57,10 @@ fun AppArtworkWallpaper(packageName: String, blurred: Boolean, isDark: Boolean, 
     }
 
     var index by remember(packageName) { mutableIntStateOf(0) }
-    LaunchedEffectSlideshow(size = uris.size) { index = (index + 1) % uris.size }
+    // Reduce motion: hold a single poster (no auto-advance, no Ken-Burns drift).
+    if (!reduceMotion) {
+        LaunchedEffectSlideshow(size = uris.size) { index = (index + 1) % uris.size }
+    }
 
     // Keep the previous bitmap on screen until the next one finishes loading (no black flashes).
     val image by produceState<ImageBitmap?>(initialValue = null, key1 = packageName, key2 = index) {
@@ -59,12 +68,13 @@ fun AppArtworkWallpaper(packageName: String, blurred: Boolean, isDark: Boolean, 
     }
 
     val kb = rememberInfiniteTransition(label = "kenburns")
-    val scale by kb.animateFloat(
+    val drift by kb.animateFloat(
         initialValue = 1f,
         targetValue = 1.10f,
         animationSpec = infiniteRepeatable(tween(12_000, easing = LinearEasing), RepeatMode.Reverse),
         label = "kbScale",
     )
+    val scale = if (reduceMotion) 1f else drift
 
     Box(modifier = modifier.fillMaxSize().background(Color.Black)) {
         Crossfade(targetState = image, animationSpec = tween(FADE_MS), label = "poster") { img ->

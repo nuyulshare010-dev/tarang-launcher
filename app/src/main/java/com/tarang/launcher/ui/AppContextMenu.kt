@@ -52,6 +52,7 @@ fun AppContextMenu(
     onToggleFavorite: () -> Unit,
     onMove: () -> Unit,
     onDismiss: () -> Unit,
+    onHide: (() -> Unit)? = null,
 ) {
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         val titleFocus = remember { FocusRequester() }
@@ -84,6 +85,9 @@ fun AppContextMenu(
                     MenuRow(R.drawable.ic_swap_horiz, "Move") { onMove() }
                 } else {
                     MenuRow(R.drawable.ic_star_outline, "Add to favorites") { onToggleFavorite(); onDismiss() }
+                    onHide?.let { hide ->
+                        MenuRow(R.drawable.ic_visibility_off, "Hide app") { hide(); onDismiss() }
+                    }
                 }
             }
         }

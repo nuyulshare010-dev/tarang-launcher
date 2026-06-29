@@ -138,6 +138,7 @@ fun LauncherScreen(
                         packageName = app,
                         blurred = settings.blurred,
                         isDark = isDark,
+                        reduceMotion = settings.reduceMotion,
                         modifier = Modifier.fillMaxSize(),
                     )
 
@@ -150,7 +151,7 @@ fun LauncherScreen(
 
                     else -> AnimatedWallpaper(
                         preset = preset,
-                        animated = settings.animated,
+                        animated = settings.animated && !settings.reduceMotion,
                         blurred = settings.blurred,
                         ambient = ambient,
                         isDark = isDark,
@@ -179,6 +180,10 @@ fun LauncherScreen(
                 onTheme = viewModel::setTheme,
                 showContinueRow = settings.showContinueRow,
                 onShowContinueRow = viewModel::setShowContinueRow,
+                reduceMotion = settings.reduceMotion,
+                onReduceMotion = viewModel::setReduceMotion,
+                hiddenApps = uiState.allApps.filter { it.packageName in settings.hiddenApps },
+                onUnhideApp = { viewModel.setAppHidden(it, false) },
                 onClose = { showSettings = false },
             )
         } else {
@@ -190,7 +195,7 @@ fun LauncherScreen(
                         uiState.allApps.isEmpty() -> Centered { Text("No apps found", color = colors.text, fontSize = 20.sp) }
                         else -> LauncherContent(
                             dockApps = uiState.dockApps,
-                            gridApps = uiState.gridApps,
+                            gridApps = uiState.gridApps.filterNot { it.packageName in settings.hiddenApps },
                             iconLoader = container.iconLoader,
                             onAppFocused = viewModel::onAppFocused,
                             onAppClicked = { viewModel.launchApp(it) },
@@ -204,6 +209,8 @@ fun LauncherScreen(
                             watchNext = uiState.watchNext,
                             showContinueRow = settings.showContinueRow,
                             onWatchNextClick = { viewModel.launchWatchNext(it) },
+                            reduceMotion = settings.reduceMotion,
+                            onHideApp = { viewModel.setAppHidden(it, true) },
                             modifier = Modifier.fillMaxSize(),
                         )
                     }

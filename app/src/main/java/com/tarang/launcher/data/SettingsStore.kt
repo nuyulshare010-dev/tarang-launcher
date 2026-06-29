@@ -40,6 +40,10 @@ data class LauncherSettings(
     val theme: ThemeMode = ThemeMode.DARK,
     /** Show the "Continue watching" (Watch Next) row on the home screen. */
     val showContinueRow: Boolean = true,
+    /** Calm everything down: no wallpaper drift, slideshow, or tile-focus spring. */
+    val reduceMotion: Boolean = false,
+    /** Packages the user has hidden from the grid (still launchable, just out of sight). */
+    val hiddenApps: Set<String> = emptySet(),
 )
 
 /** Persists [LauncherSettings] via DataStore. */
@@ -59,6 +63,8 @@ class SettingsStore(context: Context) {
             artworkApps = p[ARTWORK_APPS] ?: emptySet(),
             theme = runCatching { ThemeMode.valueOf(p[THEME] ?: "DARK") }.getOrDefault(ThemeMode.DARK),
             showContinueRow = p[SHOW_CONTINUE_ROW] ?: true,
+            reduceMotion = p[REDUCE_MOTION] ?: false,
+            hiddenApps = p[HIDDEN_APPS] ?: emptySet(),
         )
     }
 
@@ -91,6 +97,13 @@ class SettingsStore(context: Context) {
 
     suspend fun setTheme(mode: ThemeMode) = dataStore.edit { it[THEME] = mode.name }
     suspend fun setShowContinueRow(value: Boolean) = dataStore.edit { it[SHOW_CONTINUE_ROW] = value }
+    suspend fun setReduceMotion(value: Boolean) = dataStore.edit { it[REDUCE_MOTION] = value }
+
+    /** Hides/unhides an app from the grid. */
+    suspend fun setAppHidden(packageName: String, hidden: Boolean) = dataStore.edit { p ->
+        val current = p[HIDDEN_APPS] ?: emptySet()
+        p[HIDDEN_APPS] = if (hidden) current + packageName else current - packageName
+    }
 
     private companion object {
         val WALLPAPER_ID = intPreferencesKey("wallpaper_id")
@@ -103,5 +116,7 @@ class SettingsStore(context: Context) {
         val ARTWORK_APPS = stringSetPreferencesKey("artwork_apps")
         val THEME = stringPreferencesKey("theme")
         val SHOW_CONTINUE_ROW = booleanPreferencesKey("show_continue_row")
+        val REDUCE_MOTION = booleanPreferencesKey("reduce_motion")
+        val HIDDEN_APPS = stringSetPreferencesKey("hidden_apps")
     }
 }

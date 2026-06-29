@@ -114,6 +114,9 @@ class LauncherViewModel(
     fun setTheme(mode: com.tarang.launcher.data.ThemeMode) =
         viewModelScope.launch { settingsStore.setTheme(mode) }.let {}
     fun setShowContinueRow(value: Boolean) = viewModelScope.launch { settingsStore.setShowContinueRow(value) }.let {}
+    fun setReduceMotion(value: Boolean) = viewModelScope.launch { settingsStore.setReduceMotion(value) }.let {}
+    fun setAppHidden(packageName: String, hidden: Boolean) =
+        viewModelScope.launch { settingsStore.setAppHidden(packageName, hidden) }.let {}
 
     companion object {
         private const val DEFAULT_DOCK_COUNT = 5

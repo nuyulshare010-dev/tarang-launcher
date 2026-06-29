@@ -62,6 +62,7 @@ import com.tarang.launcher.data.TvArtwork
 
 private enum class SettingsSection(val title: String) {
     APPEARANCE("Appearance"),
+    HIDDEN_APPS("Hidden apps"),
     DIAGNOSTICS("Diagnostics"),
 }
 
@@ -89,6 +90,10 @@ fun SettingsScreen(
     onTheme: (ThemeMode) -> Unit,
     showContinueRow: Boolean,
     onShowContinueRow: (Boolean) -> Unit,
+    reduceMotion: Boolean,
+    onReduceMotion: (Boolean) -> Unit,
+    hiddenApps: List<AppInfo>,
+    onUnhideApp: (String) -> Unit,
     onClose: () -> Unit,
 ) {
     val colors = LocalLauncherColors.current
@@ -142,6 +147,13 @@ fun SettingsScreen(
                         onTheme = onTheme,
                         showContinueRow = showContinueRow,
                         onShowContinueRow = onShowContinueRow,
+                        reduceMotion = reduceMotion,
+                        onReduceMotion = onReduceMotion,
+                    )
+
+                    SettingsSection.HIDDEN_APPS -> HiddenAppsPane(
+                        hiddenApps = hiddenApps,
+                        onUnhide = onUnhideApp,
                     )
 
                     SettingsSection.DIAGNOSTICS -> DiagnosticsPane(onScanTvContent = onScanTvContent)
@@ -208,6 +220,8 @@ private fun AppearancePane(
     onTheme: (ThemeMode) -> Unit,
     showContinueRow: Boolean,
     onShowContinueRow: (Boolean) -> Unit,
+    reduceMotion: Boolean,
+    onReduceMotion: (Boolean) -> Unit,
 ) {
     val thumb = rememberWallpaperThumb(settings.wallpaperImagePath)
     val imageActive = settings.useImageWallpaper
@@ -275,6 +289,18 @@ private fun AppearancePane(
             ToggleChip("Animated", settings.animated) { onAnimated(true) }
             ToggleChip("Static", !settings.animated) { onAnimated(false) }
         }
+
+        SectionLabel("Reduce motion")
+        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            ToggleChip("On", reduceMotion) { onReduceMotion(true) }
+            ToggleChip("Off", !reduceMotion) { onReduceMotion(false) }
+        }
+        Text(
+            "Calms the interface: no wallpaper drift, no artwork slideshow, and tiles snap into focus instead of springing.",
+            color = LocalLauncherColors.current.textDim,
+            fontSize = 13.sp,
+            modifier = Modifier.fillMaxWidth(0.85f),
+        )
 
         SectionLabel("Background")
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -403,6 +429,75 @@ private fun artworkDetail(art: AppArtwork?): String {
         if (art.posters > 0) add("${art.posters} posters")
         if (art.videos > 0) add("${art.videos} videos")
     }.joinToString("  ·  ")
+}
+
+/**
+ * Manage apps the user has hidden from the grid: list them with an "Unhide" action. Hiding itself
+ * happens from the home-screen long-press menu; this is where they come back.
+ */
+@Composable
+private fun HiddenAppsPane(hiddenApps: List<AppInfo>, onUnhide: (String) -> Unit) {
+    val colors = LocalLauncherColors.current
+    Column(
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(22.dp),
+    ) {
+        PaneTitle("Hidden apps")
+        Text(
+            "Apps hidden from the home grid. They stay installed and keep working — unhide to show one again.",
+            color = colors.textDim,
+            fontSize = 14.sp,
+            modifier = Modifier.fillMaxWidth(0.7f),
+        )
+        if (hiddenApps.isEmpty()) {
+            Text(
+                "Nothing hidden. Long-press an app on the home screen and choose “Hide app”.",
+                color = colors.textDim,
+                fontSize = 13.sp,
+            )
+        } else {
+            Column(
+                modifier = Modifier.fillMaxWidth(0.85f),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                hiddenApps.sortedBy { it.label.lowercase() }.forEach { app ->
+                    HiddenAppRow(label = app.label) { onUnhide(app.packageName) }
+                }
+            }
+        }
+        Spacer(Modifier.height(44.dp))
+    }
+}
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+private fun HiddenAppRow(label: String, onUnhide: () -> Unit) {
+    val colors = LocalLauncherColors.current
+    var focused by remember { mutableStateOf(false) }
+    val fg = if (focused) colors.onHighlight else colors.text
+    Surface(
+        onClick = onUnhide,
+        modifier = Modifier.fillMaxWidth().onFocusChanged { focused = it.isFocused },
+        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(12.dp)),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
+        colors = ClickableSurfaceDefaults.colors(
+            containerColor = colors.chip,
+            focusedContainerColor = colors.highlight,
+        ),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(label, color = fg, fontSize = 16.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+            Text(
+                text = "Unhide",
+                color = if (focused) colors.onHighlight else okColor(colors.isDark),
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
+    }
 }
 
 @Composable

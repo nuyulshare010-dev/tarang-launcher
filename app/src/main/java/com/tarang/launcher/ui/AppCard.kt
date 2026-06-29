@@ -3,6 +3,7 @@ package com.tarang.launcher.ui
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -61,6 +62,7 @@ fun AppCard(
     upFocusRequester: FocusRequester? = null,
     isMoving: Boolean = false,
     dimmed: Boolean = false,
+    reduceMotion: Boolean = false,
 ) {
     val tile: TileArt? by produceState<TileArt?>(initialValue = null, app.packageName) {
         value = iconLoader.loadTile(app)
@@ -85,7 +87,9 @@ fun AppCard(
             focused -> 1.12f
             else -> 1f
         },
-        animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium),
+        // Reduce motion: snap to the focused size instead of springing into it.
+        animationSpec = if (reduceMotion) snap() else
+            spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium),
         label = "tileScale",
     )
 
