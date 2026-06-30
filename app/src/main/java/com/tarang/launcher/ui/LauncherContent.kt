@@ -144,13 +144,14 @@ fun LauncherContent(
     }
 
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
-        // Size tiles to fill the row at the chosen column count (the grid stretches edge-to-edge).
-        // The dock reuses the grid size, but shrinks to fit if it holds more tiles than a row.
+        // Size tiles to fill the row at the chosen column count (the grid stretches edge-to-edge). The
+        // dock tiles match the grid tile width so favorites sit on the same columns — until there are
+        // more favorites than columns, when they shrink together to keep all of them on one row.
         val availWidth = maxWidth - SidePad * 2
         val gridTileW = (availWidth - TileGap * (columns - 1)) / columns
         val gridTileH = gridTileW * TILE_ASPECT
         val dockCount = shownDock.size.coerceAtLeast(1)
-        val dockTileW = minOf(gridTileW, (availWidth - DockPad * 2 - TileGap * (dockCount - 1)) / dockCount)
+        val dockTileW = minOf(gridTileW, (availWidth - TileGap * (dockCount - 1)) / dockCount)
         val dockTileH = dockTileW * TILE_ASPECT
 
         // Drop the dock to the bottom so ONLY it shows at rest; the grid sits fully below the fold and
@@ -162,7 +163,9 @@ fun LauncherContent(
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = SidePad, end = SidePad, top = topGap, bottom = 56.dp),
+            // No horizontal content padding: the grid rows and the dock apply their own side insets, so
+            // the dock's frosted bar can reach a DockPad past the grid margin (see the dock item below).
+            contentPadding = PaddingValues(top = topGap, bottom = 56.dp),
             verticalArrangement = Arrangement.spacedBy(28.dp),
         ) {
             if (hasDock) {
@@ -170,6 +173,11 @@ fun LauncherContent(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
+                            // Inset to one DockPad short of the grid margin, so the frosted bar always
+                            // spans a full grid row PLUS a DockPad of breathing room bleeding into each
+                            // side margin — regardless of how few favorites there are. The inner DockPad
+                            // padding then lands the tiles exactly on the grid columns.
+                            .padding(horizontal = SidePad - DockPad)
                             // When focus returns to the dock, scroll back so the layout sits at the
                             // top. When focus leaves the dock entirely, clear the artwork hover.
                             .onFocusChanged {
@@ -210,6 +218,7 @@ fun LauncherContent(
                     onAppLongPressed = openMenu, // long-press a grid tile -> context menu
                     tileWidth = gridTileW,
                     tileHeight = gridTileH,
+                    modifier = Modifier.padding(horizontal = SidePad), // own side inset (no list padding)
                     reduceMotion = reduceMotion,
                     firstCardFocusRequester = if (!hasDock && index == 0) firstCard else null,
                     // Only the very top row sends UP to the settings button.
