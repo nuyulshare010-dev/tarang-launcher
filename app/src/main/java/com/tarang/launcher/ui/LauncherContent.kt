@@ -108,6 +108,7 @@ fun LauncherContent(
     onHideApp: (String) -> Unit = {},
     onAppInfo: (String) -> Unit = {},
     onUninstall: (String) -> Unit = {},
+    glassLive: Boolean = true,
 ) {
     val gridRows = remember(gridApps, columns) { gridApps.chunked(columns) }
     val firstCard = remember { FocusRequester() }
@@ -177,7 +178,7 @@ fun LauncherContent(
                             }
                             // No per-app accent on the dock: it kept re-tinting on every hover (a
                             // visible flicker + redraw). A stable chrome tint keeps the dock calm.
-                            .frostedGlass(backdrop, DockShape, tint = colors.chrome)
+                            .frostedGlass(backdrop, DockShape, tint = colors.chrome, live = glassLive)
                             .padding(DockPad),
                     ) {
                         AppRow(

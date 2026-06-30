@@ -9,6 +9,8 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -27,6 +29,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -182,6 +185,9 @@ fun LauncherScreen(
     var awaitingReturn by remember { mutableStateOf(false) }
     var returnTick by remember { mutableIntStateOf(0) }
     var launchTick by remember { mutableIntStateOf(0) }
+    // True while a launch/return zoom is animating — used to freeze the (GPU-heavy) frosted glass and
+    // the per-frame wallpaper capture so the animation itself stays smooth on weak TV hardware.
+    val transitioning by remember { derivedStateOf { enter.value < 0.999f } }
 
     fun launchApp(packageName: String, source: Rect) {
         val animate = !settings.reduceMotion
@@ -229,9 +235,13 @@ fun LauncherScreen(
     }
     LaunchedEffect(returnTick) {
         if (returnTick > 0) {
-            // Return: start zoomed-in and scale back DOWN to rest while fading in.
+            // Return: start zoomed-in and scale back DOWN to rest while fading in. A spring starts
+            // fast and settles, which reads snappier than a fixed-duration curve.
             enter.snapTo(0f)
-            enter.animateTo(1f, tween(durationMillis = 460, easing = FastOutSlowInEasing))
+            enter.animateTo(
+                1f,
+                spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow),
+            )
         }
     }
 
@@ -266,8 +276,14 @@ fun LauncherScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .drawWithContent {
-                    backdrop.record { this@drawWithContent.drawContent() }
-                    drawLayer(backdrop)
+                    // While a launch/return zoom runs, no frosted surface is sampling the backdrop, so
+                    // skip the per-frame layer capture and draw the wallpaper straight to the screen.
+                    if (transitioning) {
+                        drawContent()
+                    } else {
+                        backdrop.record { this@drawWithContent.drawContent() }
+                        drawLayer(backdrop)
+                    }
                 },
         ) {
             Crossfade(targetState = artworkApp, animationSpec = tween(700), label = "wallpaper") { app ->
@@ -347,6 +363,7 @@ fun LauncherScreen(
                     onOpenSettings = { showSettings = true },
                     tuneFocus = tuneFocus,
                     backdrop = backdrop,
+                    glassLive = !transitioning,
                 )
                 Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                     when {
@@ -368,6 +385,7 @@ fun LauncherScreen(
                             onHideApp = { viewModel.setAppHidden(it, true) },
                             onAppInfo = { viewModel.openAppInfo(it) },
                             onUninstall = { viewModel.uninstallApp(it) },
+                            glassLive = !transitioning,
                             modifier = Modifier.fillMaxSize(),
                         )
                     }
@@ -402,6 +420,7 @@ private fun TopBar(
     onOpenSettings: () -> Unit,
     tuneFocus: FocusRequester,
     backdrop: GraphicsLayer,
+    glassLive: Boolean,
 ) {
     val context = LocalContext.current
     val net = rememberNetStatus()
@@ -417,13 +436,13 @@ private fun TopBar(
         // any wallpaper without scrimming the whole image.
         Clock(
             modifier = Modifier
-                .frostedGlass(backdrop, RoundedCornerShape(18.dp), tint = colors.textBackdrop)
+                .frostedGlass(backdrop, RoundedCornerShape(18.dp), tint = colors.textBackdrop, live = glassLive)
                 .padding(horizontal = 16.dp, vertical = 8.dp),
         )
         // Status pill: Wi-Fi indicator + Android settings + launcher (tune) settings.
         Row(
             modifier = Modifier
-                .frostedGlass(backdrop, RoundedCornerShape(percent = 50), tint = colors.textBackdrop)
+                .frostedGlass(backdrop, RoundedCornerShape(percent = 50), tint = colors.textBackdrop, live = glassLive)
                 .padding(horizontal = 8.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically,

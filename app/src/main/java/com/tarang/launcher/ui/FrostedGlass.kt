@@ -62,6 +62,9 @@ private const val REFRACTION_AGSL = """
  * (and a plain blur where available). The element must be drawn above the same [backdrop] graphics
  * layer that recorded the wallpaper (see LauncherScreen) — it re-draws that layer shifted by its own
  * on-screen position so the blurred slice lines up.
+ *
+ * [live] gates the expensive part: when false (e.g. mid launch/return animation) the blur + refraction
+ * is skipped and only the cheap tint + sheen + rim are drawn, freeing the GPU for the animation.
  */
 @Composable
 fun Modifier.frostedGlass(
@@ -70,6 +73,7 @@ fun Modifier.frostedGlass(
     tint: Color,
     accent: Color? = null,
     blurRadius: Dp = 22.dp,
+    live: Boolean = true,
 ): Modifier {
     val layer = rememberGraphicsLayer()
     var offset by remember { mutableStateOf(Offset.Zero) }
@@ -92,7 +96,7 @@ fun Modifier.frostedGlass(
         .onGloballyPositioned { offset = it.positionInRoot(); glassSize = it.size }
         .clip(shape)
         .drawBehind {
-            if (effect != null) {
+            if (live && effect != null) {
                 layer.renderEffect = effect
                 layer.record { translate(-offset.x, -offset.y) { drawLayer(backdrop) } }
                 drawLayer(layer)
