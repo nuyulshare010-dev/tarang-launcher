@@ -195,13 +195,13 @@ fun LauncherScreen(
     LaunchedEffect(frameOn) {
         frameProgress.animateTo(
             if (frameOn) 1f else 0f,
-            tween(durationMillis = if (frameOn) 1275 else 975, easing = FastOutSlowInEasing),
+            // A calm, deliberate chrome transition — same speed both ways so enter/exit feel symmetric.
+            tween(durationMillis = 1700, easing = FastOutSlowInEasing),
         )
     }
     val frameSettled by remember { derivedStateOf { frameProgress.value > 0.999f } }
     val chromePresent by remember { derivedStateOf { frameProgress.value < 0.999f } }
     val framePartly by remember { derivedStateOf { frameProgress.value > 0.001f } }
-    val frameMoving by remember { derivedStateOf { frameProgress.value > 0.001f && frameProgress.value < 0.999f } }
 
     // When Frame Art turns on, pull focus onto the capture layer so nothing behind it stays focused
     // (otherwise D-pad keys reach the grid — moving focus, or launching the focused app on OK). On
@@ -440,7 +440,11 @@ fun LauncherScreen(
                             onEnterFrame = { frameOn = true },
                             tuneFocus = tuneFocus,
                             backdrop = backdrop,
-                            glassLive = !transitioning && !frameMoving,
+                            // Keep the glass live through the Frame Art transition (the big full-screen
+                            // backdrop capture is already skipped while framePartly), so the chrome stays
+                            // frosted as it slides out and re-captures immediately as it returns. Only an
+                            // app-launch/return zoom freezes it (drawing the last frosted slice).
+                            glassLive = !transitioning,
                         )
                     }
                     // Dock + grid scale up and drop off the bottom — same choreography for frame mode and
@@ -478,7 +482,7 @@ fun LauncherScreen(
                                 onHideApp = { viewModel.setAppHidden(it, true) },
                                 onAppInfo = { viewModel.openAppInfo(it) },
                                 onUninstall = { viewModel.uninstallApp(it) },
-                                glassLive = !transitioning && !frameMoving,
+                                glassLive = !transitioning,
                                 modifier = Modifier.fillMaxSize(),
                             )
                         }

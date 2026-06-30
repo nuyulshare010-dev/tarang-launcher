@@ -96,9 +96,14 @@ fun Modifier.frostedGlass(
         .onGloballyPositioned { offset = it.positionInRoot(); glassSize = it.size }
         .clip(shape)
         .drawBehind {
-            if (live && effect != null) {
+            if (effect != null) {
                 layer.renderEffect = effect
-                layer.record { translate(-offset.x, -offset.y) { drawLayer(backdrop) } }
+                // [live] only gates the expensive re-capture of the backdrop slice. When frozen we
+                // still draw the LAST captured slice, so the glass stays frosted mid-animation instead
+                // of dropping to a near-transparent tint (which read as a flash on Frame Art enter/exit).
+                if (live) {
+                    layer.record { translate(-offset.x, -offset.y) { drawLayer(backdrop) } }
+                }
                 drawLayer(layer)
             }
             drawRect(tint)
