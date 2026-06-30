@@ -43,7 +43,7 @@ enum class FrameClockSize { SMALL, MEDIUM, LARGE }
 val FRAME_INTERVALS = listOf(10, 30, 60, 300, 900)
 
 /** Idle timeouts (seconds) before Frame Art starts itself; 0 = only start it manually. */
-val FRAME_AUTOSTART_TIMEOUTS = listOf(0, 120, 300, 600, 1800)
+val FRAME_AUTOSTART_TIMEOUTS = listOf(0, 60, 120, 300, 600, 1800)
 
 /** User-tunable launcher look (set from the in-app settings panel). */
 data class LauncherSettings(
@@ -90,6 +90,9 @@ data class LauncherSettings(
     val frameMotion: Boolean = true,
     /** Shuffle the folder slideshow (random order) instead of newest-first. */
     val frameShuffle: Boolean = false,
+    /** Play Frame Art as the launcher's wallpaper (so entering frame mode just dissolves the chrome).
+     *  The home wallpaper is always a still frame; the art only comes alive in full frame mode. */
+    val useFrameArtWallpaper: Boolean = false,
 )
 
 /** Persists [LauncherSettings] via DataStore. */
@@ -128,6 +131,7 @@ class SettingsStore(context: Context) {
             frameShowDate = p[FRAME_SHOW_DATE] ?: true,
             frameMotion = p[FRAME_MOTION] ?: true,
             frameShuffle = p[FRAME_SHUFFLE] ?: false,
+            useFrameArtWallpaper = p[USE_FRAME_WALLPAPER] ?: false,
         )
     }
 
@@ -190,6 +194,7 @@ class SettingsStore(context: Context) {
     suspend fun setFrameShowDate(value: Boolean) = dataStore.edit { it[FRAME_SHOW_DATE] = value }
     suspend fun setFrameMotion(value: Boolean) = dataStore.edit { it[FRAME_MOTION] = value }
     suspend fun setFrameShuffle(value: Boolean) = dataStore.edit { it[FRAME_SHUFFLE] = value }
+    suspend fun setUseFrameArtWallpaper(value: Boolean) = dataStore.edit { it[USE_FRAME_WALLPAPER] = value }
 
     private companion object {
         val WALLPAPER_ID = intPreferencesKey("wallpaper_id")
@@ -215,5 +220,6 @@ class SettingsStore(context: Context) {
         val FRAME_SHOW_DATE = booleanPreferencesKey("frame_show_date")
         val FRAME_MOTION = booleanPreferencesKey("frame_motion")
         val FRAME_SHUFFLE = booleanPreferencesKey("frame_shuffle")
+        val USE_FRAME_WALLPAPER = booleanPreferencesKey("use_frame_wallpaper")
     }
 }

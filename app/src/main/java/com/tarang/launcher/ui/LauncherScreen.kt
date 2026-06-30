@@ -74,6 +74,7 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import com.tarang.launcher.R
 import com.tarang.launcher.data.FrameSource
+import com.tarang.launcher.data.LauncherSettings
 import com.tarang.launcher.di.AppContainer
 import com.tarang.launcher.home.HomeSetup
 import com.tarang.launcher.viewmodel.LauncherViewModel
@@ -188,6 +189,32 @@ fun LauncherScreen(
         }
     }
 
+    // Smooth frame transition: 0 = launcher chrome present, 1 = full Frame Art (chrome gone, big clock
+    // shown). [frameOn] is the target; this animates toward it so the chrome can scale up + slide out
+    // and the clock fade in, then reverse on exit.
+    val frameProgress = remember { Animatable(0f) }
+    LaunchedEffect(frameOn) {
+        frameProgress.animateTo(
+            if (frameOn) 1f else 0f,
+            tween(durationMillis = if (frameOn) 1275 else 975, easing = FastOutSlowInEasing),
+        )
+    }
+    val frameSettled by remember { derivedStateOf { frameProgress.value > 0.999f } }
+    val chromePresent by remember { derivedStateOf { frameProgress.value < 0.999f } }
+    val framePartly by remember { derivedStateOf { frameProgress.value > 0.001f } }
+    val frameMoving by remember { derivedStateOf { frameProgress.value > 0.001f && frameProgress.value < 0.999f } }
+
+    // Is Frame Art configured to a real source (folder/single)? The "current wallpaper" source has no
+    // art of its own — it just shows the wallpaper full-screen — so there's nothing to overlay there.
+    val frameArtConfigured = (settings.frameSource == FrameSource.FOLDER && settings.frameFolderId != null) ||
+        (settings.frameSource == FrameSource.SINGLE && settings.frameImagePath != null)
+    val frameArtIsWallpaper = settings.useFrameArtWallpaper && frameArtConfigured
+
+    // The art drifts + cycles only when fully in frame mode; as the home wallpaper it's always a still
+    // frame (same framing as the frame, so entering frame mode just begins the drift — no jump).
+    val artDrift = frameSettled && settings.frameMotion && !settings.reduceMotion
+    val artCycle = frameSettled
+
     // App launch / return choreography. Launching hands the system a scale-up rooted at the tapped
     // tile (so the app window grows out of it); coming back home eases the grid in from that same
     // spot. Both are skipped when Reduce motion is on.
@@ -289,9 +316,9 @@ fun LauncherScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .drawWithContent {
-                    // No frosted surface samples the backdrop during a launch zoom or in Frame Art, so
-                    // skip the per-frame layer capture and draw straight to the screen.
-                    if (transitioning || frameOn) {
+                    // Skip the per-frame frosted backdrop capture during a launch zoom or once any Frame
+                    // Art is showing (no frosted chrome samples it then) — draw straight to the screen.
+                    if (transitioning || framePartly) {
                         drawContent()
                     } else {
                         backdrop.record { this@drawWithContent.drawContent() }
@@ -299,72 +326,69 @@ fun LauncherScreen(
                     }
                 },
         ) {
-            // Frame Art's folder/single sources replace the wallpaper entirely; the WALLPAPER source
-            // (and any unconfigured frame) falls through to the normal wallpaper below.
-            val frameSingle = frameOn && settings.frameSource == FrameSource.SINGLE && settings.frameImagePath != null
-            val frameFolder = frameOn && settings.frameSource == FrameSource.FOLDER && settings.frameFolderId != null
-            val frameMotion = settings.frameMotion && !settings.reduceMotion
-            when {
-                frameSingle -> Box(modifier = Modifier.fillMaxSize().frameParallax(frameMotion)) {
-                    ImageWallpaper(
-                        path = settings.frameImagePath!!,
-                        blurred = false,
+            // Hover artwork (when App artwork is on) takes priority over everything — including Frame
+            // Art as the wallpaper — then falls back to the frame art / image / gradient base.
+            Crossfade(targetState = artworkApp, animationSpec = tween(700), label = "wallpaper") { app ->
+                when {
+                    app != null -> AppArtworkWallpaper(
+                        packageName = app,
+                        blurred = settings.blurred,
+                        isDark = isDark,
+                        reduceMotion = settings.reduceMotion,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+
+                    // Frame Art as the base wallpaper (a still frame on home; alive in frame mode).
+                    frameArtIsWallpaper -> FrameArtContent(
+                        settings,
+                        drift = artDrift,
+                        cycle = artCycle,
+                        isDark = isDark,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+
+                    showImage && imagePath != null -> ImageWallpaper(
+                        path = imagePath,
+                        blurred = settings.blurred,
+                        isDark = isDark,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+
+                    else -> AnimatedWallpaper(
+                        preset = preset,
+                        animated = settings.animated && !settings.reduceMotion,
+                        blurred = settings.blurred,
+                        ambient = ambient,
                         isDark = isDark,
                         modifier = Modifier.fillMaxSize(),
                     )
                 }
-
-                frameFolder -> FrameSlideshow(
-                    folderId = settings.frameFolderId!!,
-                    intervalSec = settings.frameIntervalSec,
-                    motion = frameMotion,
-                    shuffle = settings.frameShuffle,
-                    modifier = Modifier.fillMaxSize(),
-                )
-
-                else -> Crossfade(targetState = artworkApp, animationSpec = tween(700), label = "wallpaper") { app ->
-                    when {
-                        app != null -> AppArtworkWallpaper(
-                            packageName = app,
-                            blurred = settings.blurred,
-                            isDark = isDark,
-                            reduceMotion = settings.reduceMotion,
-                            modifier = Modifier.fillMaxSize(),
-                        )
-
-                        showImage && imagePath != null -> ImageWallpaper(
-                            path = imagePath,
-                            blurred = settings.blurred,
-                            isDark = isDark,
-                            modifier = Modifier.fillMaxSize(),
-                        )
-
-                        else -> AnimatedWallpaper(
-                            preset = preset,
-                            animated = settings.animated && !settings.reduceMotion,
-                            blurred = settings.blurred,
-                            ambient = ambient,
-                            isDark = isDark,
-                            modifier = Modifier.fillMaxSize(),
-                        )
-                    }
+            }
+            // Frame mode with a configured source that ISN'T already the wallpaper: fade the art in over
+            // the current wallpaper as the chrome leaves. (The "current wallpaper" frame source has no
+            // art of its own, so nothing overlays — it just shows the wallpaper full-screen.)
+            if (framePartly && frameArtConfigured && !frameArtIsWallpaper) {
+                Box(modifier = Modifier.fillMaxSize().graphicsLayer { alpha = frameProgress.value }) {
+                    FrameArtContent(settings, drift = artDrift, cycle = artCycle, isDark = isDark, modifier = Modifier.fillMaxSize())
                 }
             }
         }
 
-        // Optional Frame Art clock, drawn over the picture (never in normal launcher mode).
-        if (frameOn && settings.frameClock) {
+        // Big Frame Art clock. Its entrance (fade + slight scale on the text, fade-only on the scrim) is
+        // sequenced to arrive in the back half of the transition, as the chrome clears.
+        if (framePartly && settings.frameClock) {
             FrameClock(
                 position = settings.frameClockPosition,
                 size = settings.frameClockSize,
                 showDate = settings.frameShowDate,
+                reveal = { ((frameProgress.value - 0.45f) / 0.55f).coerceIn(0f, 1f) },
                 modifier = Modifier.fillMaxSize(),
             )
         }
 
         // Launcher chrome (settings page or the grid). Hidden entirely in Frame Art, which is a pure,
         // chrome-free "painting".
-        if (!frameOn) {
+        if (chromePresent) {
             // The settings page takes over the whole screen (not a modal), so D-pad focus can't reach
             // the launcher behind it; the launcher isn't composed while settings is open.
             if (showSettings) {
@@ -397,6 +421,7 @@ fun LauncherScreen(
                     onFrameShowDate = viewModel::setFrameShowDate,
                     onFrameMotion = viewModel::setFrameMotion,
                     onFrameShuffle = viewModel::setFrameShuffle,
+                    onUseFrameArtWallpaper = viewModel::setUseFrameArtWallpaper,
                     onOpenAccessibilitySettings = { HomeSetup.openAccessibilitySettings(context) },
                     onChooseHomeApp = chooseHomeApp,
                     onClose = { showSettings = false },
@@ -406,8 +431,7 @@ fun LauncherScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .graphicsLayer {
-                            // p: 1 = settled, <1 = mid launch/return. Home zooms toward the launched tile
-                            // on the way out and scales back DOWN to rest (with a fade) on return.
+                            // Launch/return zoom (app open) — independent of the frame transition below.
                             val p = enter.value
                             alpha = p
                             val s = 1f + (1f - p) * 0.16f
@@ -416,14 +440,37 @@ fun LauncherScreen(
                             transformOrigin = TransformOrigin(launchOrigin.x, launchOrigin.y)
                         },
                 ) {
-                    TopBar(
-                        onOpenSettings = { showSettings = true },
-                        onEnterFrame = { frameOn = true },
-                        tuneFocus = tuneFocus,
-                        backdrop = backdrop,
-                        glassLive = !transitioning,
-                    )
-                    Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                    // Top bar rises up and off the top as frame mode takes over.
+                    Box(
+                        modifier = Modifier.fillMaxWidth().graphicsLayer {
+                            val p = frameProgress.value
+                            translationY = -p * (size.height + 48f)
+                            alpha = 1f - (p * 1.7f).coerceAtMost(1f)
+                        },
+                    ) {
+                        TopBar(
+                            onOpenSettings = { showSettings = true },
+                            onEnterFrame = { frameOn = true },
+                            tuneFocus = tuneFocus,
+                            backdrop = backdrop,
+                            glassLive = !transitioning && !frameMoving,
+                        )
+                    }
+                    // Dock + grid scale up and drop off the bottom as frame mode takes over.
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .graphicsLayer {
+                                val p = frameProgress.value
+                                val s = 1f + 0.28f * p
+                                scaleX = s
+                                scaleY = s
+                                translationY = p * size.height * 0.55f
+                                alpha = 1f - (p * 1.7f).coerceAtMost(1f)
+                                transformOrigin = TransformOrigin(0.5f, 0.85f)
+                            },
+                    ) {
                         when {
                             uiState.isLoading -> Centered { Text("Loading apps…", color = colors.text, fontSize = 20.sp) }
                             uiState.allApps.isEmpty() -> Centered { Text("No apps found", color = colors.text, fontSize = 20.sp) }
@@ -443,7 +490,7 @@ fun LauncherScreen(
                                 onHideApp = { viewModel.setAppHidden(it, true) },
                                 onAppInfo = { viewModel.openAppInfo(it) },
                                 onUninstall = { viewModel.uninstallApp(it) },
-                                glassLive = !transitioning,
+                                glassLive = !transitioning && !frameMoving,
                                 modifier = Modifier.fillMaxSize(),
                             )
                         }
@@ -581,4 +628,41 @@ private fun openAndroidSettings(context: Context) {
 @Composable
 private fun Centered(content: @Composable () -> Unit) {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { content() }
+}
+
+/**
+ * Renders the configured Frame Art (folder slideshow or single photo) — used both as the live home
+ * wallpaper and as the full-screen frame. [drift] enables the slow parallax float; [cycle] enables
+ * the folder slideshow's advance. The "current wallpaper" source renders nothing (the wallpaper shows
+ * through instead).
+ */
+@Composable
+private fun FrameArtContent(
+    settings: LauncherSettings,
+    drift: Boolean,
+    cycle: Boolean,
+    isDark: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    when {
+        settings.frameSource == FrameSource.SINGLE && settings.frameImagePath != null ->
+            Box(modifier = modifier.frameParallax(drift)) {
+                ImageWallpaper(
+                    path = settings.frameImagePath!!,
+                    blurred = false,
+                    isDark = isDark,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+
+        settings.frameSource == FrameSource.FOLDER && settings.frameFolderId != null ->
+            FrameSlideshow(
+                folderId = settings.frameFolderId!!,
+                intervalSec = settings.frameIntervalSec,
+                drift = drift,
+                cycle = cycle,
+                shuffle = settings.frameShuffle,
+                modifier = modifier,
+            )
+    }
 }

@@ -131,6 +131,8 @@ class LauncherViewModel(
     fun setFrameShowDate(value: Boolean) = viewModelScope.launch { settingsStore.setFrameShowDate(value) }.let {}
     fun setFrameMotion(value: Boolean) = viewModelScope.launch { settingsStore.setFrameMotion(value) }.let {}
     fun setFrameShuffle(value: Boolean) = viewModelScope.launch { settingsStore.setFrameShuffle(value) }.let {}
+    fun setUseFrameArtWallpaper(value: Boolean) =
+        viewModelScope.launch { settingsStore.setUseFrameArtWallpaper(value) }.let {}
 
     companion object {
         private const val DEFAULT_DOCK_COUNT = 5

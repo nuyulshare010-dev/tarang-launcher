@@ -60,6 +60,10 @@ import kotlin.math.sin
 private const val FADE_MS = 1600
 private const val FLOAT_PERIOD_MS = 36_000 // one full figure-8 loop — very slow on purpose
 
+// Slight overscan so the drift never reveals an edge. Applied even when still, so the still wallpaper
+// and the drifting frame share the exact same framing — entering frame mode then has no scale "jump".
+private const val FRAME_BASE_SCALE = 1.06f
+
 /**
  * Frame Art: a full-screen, chrome-free "painting" — a slow cross-fading slideshow of the photos in
  * the chosen device folder. [LauncherScreen] traps the next key to dismiss it. The single-photo and
@@ -71,7 +75,8 @@ private const val FLOAT_PERIOD_MS = 36_000 // one full figure-8 loop — very sl
 fun FrameSlideshow(
     folderId: String,
     intervalSec: Int,
-    motion: Boolean,
+    drift: Boolean,
+    cycle: Boolean,
     shuffle: Boolean,
     modifier: Modifier = Modifier,
 ) {
@@ -86,7 +91,9 @@ fun FrameSlideshow(
 
     var index by remember(photos) { mutableIntStateOf(0) }
     val intervalMs = (intervalSec.coerceAtLeast(5)) * 1000L
-    if (photos.size > 1) {
+    // Only advance when [cycle] is on (e.g. full frame mode, or an animated home wallpaper); a still
+    // wallpaper holds one photo and runs no timer.
+    if (cycle && photos.size > 1) {
         LaunchedEffect(photos, intervalMs) {
             while (true) {
                 delay(intervalMs)
@@ -111,7 +118,7 @@ fun FrameSlideshow(
                     bitmap = img,
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize().frameParallax(motion),
+                    modifier = Modifier.fillMaxSize().frameParallax(drift),
                 )
             }
         }
@@ -120,28 +127,36 @@ fun FrameSlideshow(
 
 /**
  * The "living painting" motion: a very slow, smooth parallax float — the image drifts a few pixels
- * along a figure-8 path and rides on a small base zoom so the drift never reveals an edge. Disabled
- * (perfectly still) when [enabled] is false. The infinite clock runs regardless so toggling it on
- * doesn't change the number of composition slots, but the transform is only applied when enabled.
+ * along a figure-8 path and rides on a small base zoom so the drift never reveals an edge. When
+ * [enabled] is false NO animation is composed at all (the infinite transition is disposed), so a
+ * still wallpaper costs nothing and doesn't keep the GPU awake — important on weak TV hardware.
  */
 @Composable
-fun Modifier.frameParallax(enabled: Boolean): Modifier {
-    val transition = rememberInfiniteTransition(label = "frameFloat")
-    val phase by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = (2f * PI).toFloat(),
-        animationSpec = infiniteRepeatable(tween(FLOAT_PERIOD_MS, easing = LinearEasing), RepeatMode.Restart),
-        label = "frameFloatPhase",
-    )
-    if (!enabled) return this
-    return this.graphicsLayer {
-        val amp = size.minDimension * 0.012f
-        translationX = sin(phase) * amp
-        translationY = sin(phase * 2f) * (amp * 0.55f)
-        scaleX = 1.06f
-        scaleY = 1.06f
+fun Modifier.frameParallax(enabled: Boolean): Modifier =
+    if (enabled) {
+        val transition = rememberInfiniteTransition(label = "frameFloat")
+        val phase by transition.animateFloat(
+            initialValue = 0f,
+            targetValue = (2f * PI).toFloat(),
+            animationSpec = infiniteRepeatable(tween(FLOAT_PERIOD_MS, easing = LinearEasing), RepeatMode.Restart),
+            label = "frameFloatPhase",
+        )
+        this.graphicsLayer {
+            val amp = size.minDimension * 0.012f
+            // Drift starts at phase 0 → translation (0,0), i.e. exactly the still framing, then eases
+            // away — so turning the drift on (entering frame mode) doesn't jump.
+            translationX = sin(phase) * amp
+            translationY = sin(phase * 2f) * (amp * 0.55f)
+            scaleX = FRAME_BASE_SCALE
+            scaleY = FRAME_BASE_SCALE
+        }
+    } else {
+        // Same base scale as the drifting version, so a still wallpaper and the frame share framing.
+        this.graphicsLayer {
+            scaleX = FRAME_BASE_SCALE
+            scaleY = FRAME_BASE_SCALE
+        }
     }
-}
 
 @OptIn(ExperimentalTextApi::class)
 private fun interWeight(w: Int) = Font(
@@ -164,6 +179,7 @@ fun FrameClock(
     position: FrameClockPosition,
     size: FrameClockSize,
     showDate: Boolean,
+    reveal: () -> Float = { 1f },
     modifier: Modifier = Modifier,
 ) {
     val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
@@ -206,16 +222,31 @@ fun FrameClock(
 
     Box(modifier = modifier.fillMaxSize()) {
         // Legibility scrim: a bottom gradient for the bottom positions; a faint overall dim for centre.
+        // It only FADES in (alpha) — never scales — so its sharp rectangular edges never slide into view.
+        val scrim = Modifier.fillMaxSize().graphicsLayer { alpha = reveal() }
         if (position == FrameClockPosition.CENTER) {
-            Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.12f)))
+            Box(modifier = scrim.background(Color.Black.copy(alpha = 0.12f)))
         } else {
             Box(
-                modifier = Modifier.fillMaxSize().background(
+                modifier = scrim.background(
                     Brush.verticalGradient(0.6f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.35f)),
                 ),
             )
         }
-        Column(modifier = Modifier.align(align).padding(pad), horizontalAlignment = colAlign) {
+        // The text fades + scales slightly from its own centre (its shadow is soft, so no hard edges).
+        Column(
+            modifier = Modifier
+                .align(align)
+                .padding(pad)
+                .graphicsLayer {
+                    val r = reveal()
+                    alpha = r
+                    val s = 0.94f + 0.06f * r
+                    scaleX = s
+                    scaleY = s
+                },
+            horizontalAlignment = colAlign,
+        ) {
             Text(
                 text = timeFormat.format(now),
                 color = Color.White,

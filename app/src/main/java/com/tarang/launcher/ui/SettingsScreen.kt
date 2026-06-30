@@ -117,6 +117,7 @@ fun SettingsScreen(
     onFrameShowDate: (Boolean) -> Unit,
     onFrameMotion: (Boolean) -> Unit,
     onFrameShuffle: (Boolean) -> Unit,
+    onUseFrameArtWallpaper: (Boolean) -> Unit,
     onOpenAccessibilitySettings: () -> Unit,
     onChooseHomeApp: (() -> Unit)?,
     onClose: () -> Unit,
@@ -172,6 +173,7 @@ fun SettingsScreen(
                         onTheme = onTheme,
                         reduceMotion = reduceMotion,
                         onReduceMotion = onReduceMotion,
+                        onUseFrameArtWallpaper = onUseFrameArtWallpaper,
                     )
 
                     SettingsSection.FRAME_ART -> FrameArtPane(
@@ -273,6 +275,7 @@ private fun AppearancePane(
     onTheme: (ThemeMode) -> Unit,
     reduceMotion: Boolean,
     onReduceMotion: (Boolean) -> Unit,
+    onUseFrameArtWallpaper: (Boolean) -> Unit,
 ) {
     val thumb = rememberWallpaperThumb(settings.wallpaperImagePath)
     val imageActive = settings.useImageWallpaper
@@ -314,6 +317,19 @@ private fun AppearancePane(
                 },
             )
         }
+
+        SectionLabel("Frame Art as wallpaper")
+        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            ToggleChip("On", settings.useFrameArtWallpaper) { onUseFrameArtWallpaper(true) }
+            ToggleChip("Off", !settings.useFrameArtWallpaper) { onUseFrameArtWallpaper(false) }
+        }
+        Text(
+            "Plays your Frame Art as the home wallpaper (a calm still frame), so opening Frame Art simply " +
+                "dissolves the launcher away and the painting comes alive. Set the source up under Frame Art.",
+            color = LocalLauncherColors.current.textDim,
+            fontSize = 13.sp,
+            modifier = Modifier.fillMaxWidth(0.85f),
+        )
 
         AppArtworkSection(
             settings = settings,
@@ -526,7 +542,10 @@ private fun FrameArtPane(
         }
 
         SectionLabel("Auto-start")
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
             FRAME_AUTOSTART_TIMEOUTS.forEach { sec ->
                 ToggleChip(timeoutLabel(sec), sec == autoStartSec) { onAutoStart(sec) }
             }
