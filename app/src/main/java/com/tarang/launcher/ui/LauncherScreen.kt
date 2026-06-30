@@ -7,9 +7,9 @@ import android.provider.Settings
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.EaseIn
+import androidx.compose.animation.core.EaseOut
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -33,7 +33,6 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -80,6 +79,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
+// Cap the frosted-glass backdrop re-capture at ~20fps (an animated wallpaper would otherwise drive it
+// at 60fps; the blurred backdrop doesn't need that, and the capture is the heaviest per-frame cost).
+private const val BACKDROP_CAPTURE_INTERVAL_NS = 50_000_000L
+
 /**
  * Top-level launcher UI: an animated wallpaper behind a clean app grid, with a top bar holding the
  * clock and settings (tune) button. No content rows. Tapping a tile launches the app directly.
@@ -125,20 +128,9 @@ fun LauncherScreen(
     val pickFrameFolder: () -> Unit = { showFolderPicker = true }
     var showTvProbe by remember { mutableStateOf(false) }
 
-    val focusedPkg by viewModel.focusedPackage.collectAsStateWithLifecycle()
-    val focusedApp = remember(focusedPkg, uiState.allApps) {
-        uiState.allApps.firstOrNull { it.packageName == focusedPkg }
-    }
     // Filter the hidden apps once (not on every recomposition) so the grid list stays stable.
     val visibleGrid = remember(uiState.gridApps, settings.hiddenApps) {
         uiState.gridApps.filterNot { it.packageName in settings.hiddenApps }
-    }
-    val ambient: Color? by produceState<Color?>(
-        initialValue = null,
-        key1 = focusedApp?.packageName,
-        key2 = settings.animated,
-    ) {
-        value = if (settings.animated) focusedApp?.let { container.iconLoader.accentColor(it) } else null
     }
     val preset = WallpaperPresets.getOrElse(settings.wallpaperId) { WallpaperPresets.first() }
     val imagePath = settings.wallpaperImagePath
@@ -161,6 +153,9 @@ fun LauncherScreen(
 
     // Record the wallpaper into a layer so the dock can re-draw it blurred as a frosted backdrop.
     val backdrop = rememberGraphicsLayer()
+    // Wall-clock of the last backdrop capture (a plain holder, not state — read/written in draw without
+    // triggering recomposition), used to throttle the capture to ~20fps for an animated wallpaper.
+    val lastBackdropCapture = remember { longArrayOf(0L) }
     val isDark = rememberIsDark(settings.theme)
     val colors = if (isDark) DarkLauncherColors else LightLauncherColors
 
@@ -199,9 +194,23 @@ fun LauncherScreen(
             tween(durationMillis = 1700, easing = FastOutSlowInEasing),
         )
     }
+    // The two chrome layers leave/return on their own timelines for a layered feel — the dock leads,
+    // the top bar trails. The master [frameProgress] above still drives the clock + wallpaper crossfade
+    // and all the gating (chromePresent / frameSettled / focus trap), so these only shape the motion.
+    val dockProgress = remember { Animatable(0f) }
+    val topBarProgress = remember { Animatable(0f) }
+    LaunchedEffect(frameOn) {
+        dockProgress.animateTo(if (frameOn) 1f else 0f, tween(durationMillis = 1200, easing = FastOutSlowInEasing))
+    }
+    LaunchedEffect(frameOn) {
+        topBarProgress.animateTo(if (frameOn) 1f else 0f, tween(durationMillis = 1500, easing = FastOutSlowInEasing))
+    }
     val frameSettled by remember { derivedStateOf { frameProgress.value > 0.999f } }
     val chromePresent by remember { derivedStateOf { frameProgress.value < 0.999f } }
     val framePartly by remember { derivedStateOf { frameProgress.value > 0.001f } }
+    // Mid-transition: used to drop the glass edge-refraction while the chrome is moving (cheaper, and
+    // the bevel is imperceptible in motion).
+    val frameMoving by remember { derivedStateOf { frameProgress.value > 0.001f && frameProgress.value < 0.999f } }
 
     // When Frame Art turns on, pull focus onto the capture layer so nothing behind it stays focused
     // (otherwise D-pad keys reach the grid — moving focus, or launching the focused app on OK). On
@@ -225,16 +234,18 @@ fun LauncherScreen(
     val artDriftAmount: () -> Float = { frameProgress.value }
     val artCycle = frameSettled
 
-    // App launch / return choreography. The system still grows the app window out of the tapped tile;
-    // the launcher chrome itself uses the same dock-drop / bar-rise motion as entering Frame Art (see
-    // the per-element transforms below), then reverses on return. Skipped when Reduce motion is on.
-    val enter = remember { Animatable(1f) } // 1 = home settled; 0 = launched (chrome gone)
+    // App launch / return choreography. The system grows the app window out of the tapped tile while the
+    // launcher chrome drops/rises away on its own staggered timelines — the dock leads, the top bar
+    // trails. 0 = home, 1 = launched (chrome gone). Skipped when Reduce motion is on.
+    val dockLaunch = remember { Animatable(0f) }
+    val topBarLaunch = remember { Animatable(0f) }
     var awaitingReturn by remember { mutableStateOf(false) }
     var returnTick by remember { mutableIntStateOf(0) }
     var launchTick by remember { mutableIntStateOf(0) }
-    // True while a launch/return zoom is animating — used to freeze the (GPU-heavy) frosted glass and
-    // the per-frame wallpaper capture so the animation itself stays smooth on weak TV hardware.
-    val transitioning by remember { derivedStateOf { enter.value < 0.999f } }
+    // True while a launch/return is animating — used to freeze the (GPU-heavy) frosted glass and the
+    // per-frame wallpaper capture so the animation itself stays smooth on weak TV hardware. The top bar
+    // is the longer of the two, so it's the last to settle.
+    val transitioning by remember { derivedStateOf { topBarLaunch.value > 0.001f } }
 
     fun launchApp(packageName: String) {
         // No window scale-up — the app opens with the system default while the launcher chrome does the
@@ -259,20 +270,20 @@ fun LauncherScreen(
     }
     LaunchedEffect(launchTick) {
         if (launchTick > 0) {
-            // Plays during the device's app-open latency: the chrome does the same dock-drop / bar-rise
-            // as entering Frame Art (just quicker, so the app still opens promptly).
-            enter.animateTo(0f, tween(durationMillis = 450, easing = FastOutSlowInEasing))
+            // Leaving for the app: ease IN (start slow, accelerate away). Dock leads (600ms), top bar
+            // trails (900ms). Run them in parallel so each keeps its own duration.
+            launch { dockLaunch.animateTo(1f, tween(durationMillis = 600, easing = EaseIn)) }
+            launch { topBarLaunch.animateTo(1f, tween(durationMillis = 900, easing = EaseIn)) }
         }
     }
     LaunchedEffect(returnTick) {
         if (returnTick > 0) {
-            // Return: start zoomed-in and scale back DOWN to rest while fading in. A spring starts
-            // fast and settles, which reads snappier than a fixed-duration curve.
-            enter.snapTo(0f)
-            enter.animateTo(
-                1f,
-                spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow),
-            )
+            // Returning from the app: the reverse — start from the launched state and ease OUT (rush in,
+            // decelerate to rest), same staggered durations.
+            dockLaunch.snapTo(1f)
+            topBarLaunch.snapTo(1f)
+            launch { dockLaunch.animateTo(0f, tween(durationMillis = 600, easing = EaseOut)) }
+            launch { topBarLaunch.animateTo(0f, tween(durationMillis = 900, easing = EaseOut)) }
         }
     }
 
@@ -313,12 +324,20 @@ fun LauncherScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .drawWithContent {
-                    // Skip the per-frame frosted backdrop capture during a launch zoom or once any Frame
-                    // Art is showing (no frosted chrome samples it then) — draw straight to the screen.
-                    if (transitioning || framePartly) {
+                    // Skip the per-frame frosted backdrop capture during a launch zoom, once any Frame
+                    // Art is showing, or when glass blur is turned off entirely (no one samples it then)
+                    // — draw straight to the screen.
+                    if (transitioning || framePartly || !settings.glassBlur) {
                         drawContent()
                     } else {
-                        backdrop.record { this@drawWithContent.drawContent() }
+                        // Throttle the (full-screen, GPU-heavy) capture to ~20fps: an animated wallpaper
+                        // invalidates every frame, but the blurred backdrop behind the glass doesn't need
+                        // 60fps. Always composite the (possibly slightly stale) layer to the screen.
+                        val now = System.nanoTime()
+                        if (now - lastBackdropCapture[0] >= BACKDROP_CAPTURE_INTERVAL_NS) {
+                            backdrop.record { this@drawWithContent.drawContent() }
+                            lastBackdropCapture[0] = now
+                        }
                         drawLayer(backdrop)
                     }
                 },
@@ -354,9 +373,9 @@ fun LauncherScreen(
 
                     else -> AnimatedWallpaper(
                         preset = preset,
-                        animated = settings.animated && !settings.reduceMotion,
+                        animated = false, // the wallpaper is always a still gradient now
                         blurred = settings.blurred,
-                        ambient = ambient,
+                        ambient = null,
                         isDark = isDark,
                         modifier = Modifier.fillMaxSize(),
                     )
@@ -393,8 +412,8 @@ fun LauncherScreen(
                 SettingsScreen(
                     settings = settings,
                     onWallpaper = viewModel::setWallpaper,
-                    onAnimated = viewModel::setAnimated,
                     onBlurred = viewModel::setBlurred,
+                    onGlassBlur = viewModel::setGlassBlur,
                     onColumns = viewModel::setColumns,
                     onPickImage = pickImage,
                     onUseImage = { viewModel.setUseImageWallpaper(true) },
@@ -427,10 +446,10 @@ fun LauncherScreen(
             } else {
                 Column(modifier = Modifier.fillMaxSize()) {
                     // Top bar rises up and off the top — driven by BOTH the frame transition and an app
-                    // launch (1 - enter.value), so launching an app uses the same chrome choreography.
+                    // launch (topBarLaunch), so launching an app uses the same chrome choreography.
                     Box(
                         modifier = Modifier.fillMaxWidth().graphicsLayer {
-                            val p = maxOf(frameProgress.value, 1f - enter.value)
+                            val p = maxOf(topBarProgress.value, topBarLaunch.value)
                             translationY = -p * (size.height + 48f)
                             alpha = 1f - (p * 1.7f).coerceAtMost(1f)
                         },
@@ -445,6 +464,9 @@ fun LauncherScreen(
                             // frosted as it slides out and re-captures immediately as it returns. Only an
                             // app-launch/return zoom freezes it (drawing the last frosted slice).
                             glassLive = !transitioning,
+                            // Full quality (edge refraction) only at rest; drop it while anything moves.
+                            glassRefract = !transitioning && !frameMoving,
+                            glassBlur = settings.glassBlur,
                         )
                     }
                     // Dock + grid scale up and drop off the bottom — same choreography for frame mode and
@@ -454,7 +476,7 @@ fun LauncherScreen(
                             .weight(1f)
                             .fillMaxWidth()
                             .graphicsLayer {
-                                val p = maxOf(frameProgress.value, 1f - enter.value)
+                                val p = maxOf(dockProgress.value, dockLaunch.value)
                                 val s = 1f + 0.28f * p
                                 scaleX = s
                                 scaleY = s
@@ -483,6 +505,8 @@ fun LauncherScreen(
                                 onAppInfo = { viewModel.openAppInfo(it) },
                                 onUninstall = { viewModel.uninstallApp(it) },
                                 glassLive = !transitioning,
+                                glassRefract = !transitioning && !frameMoving,
+                                glassBlur = settings.glassBlur,
                                 modifier = Modifier.fillMaxSize(),
                             )
                         }
@@ -532,6 +556,8 @@ private fun TopBar(
     tuneFocus: FocusRequester,
     backdrop: GraphicsLayer,
     glassLive: Boolean,
+    glassRefract: Boolean,
+    glassBlur: Boolean,
 ) {
     val context = LocalContext.current
     val net = rememberNetStatus()
@@ -547,13 +573,13 @@ private fun TopBar(
         // any wallpaper without scrimming the whole image.
         Clock(
             modifier = Modifier
-                .frostedGlass(backdrop, RoundedCornerShape(18.dp), tint = colors.textBackdrop, live = glassLive)
+                .frostedGlass(backdrop, RoundedCornerShape(18.dp), tint = if (glassBlur) colors.textBackdrop else colors.textBackdropOpaque, live = glassLive, refract = glassRefract, blur = glassBlur)
                 .padding(horizontal = 16.dp, vertical = 8.dp),
         )
         // Status pill: Wi-Fi indicator + Android settings + launcher (tune) settings.
         Row(
             modifier = Modifier
-                .frostedGlass(backdrop, RoundedCornerShape(percent = 50), tint = colors.textBackdrop, live = glassLive)
+                .frostedGlass(backdrop, RoundedCornerShape(percent = 50), tint = if (glassBlur) colors.textBackdrop else colors.textBackdropOpaque, live = glassLive, refract = glassRefract, blur = glassBlur)
                 .padding(horizontal = 8.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically,

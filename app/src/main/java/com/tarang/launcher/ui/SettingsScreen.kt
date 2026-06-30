@@ -91,8 +91,8 @@ private enum class SettingsSection(val title: String) {
 fun SettingsScreen(
     settings: LauncherSettings,
     onWallpaper: (Int) -> Unit,
-    onAnimated: (Boolean) -> Unit,
     onBlurred: (Boolean) -> Unit,
+    onGlassBlur: (Boolean) -> Unit,
     onColumns: (Int) -> Unit,
     onPickImage: () -> Unit,
     onUseImage: () -> Unit,
@@ -161,8 +161,8 @@ fun SettingsScreen(
                     SettingsSection.APPEARANCE -> AppearancePane(
                         settings = settings,
                         onWallpaper = onWallpaper,
-                        onAnimated = onAnimated,
                         onBlurred = onBlurred,
+                        onGlassBlur = onGlassBlur,
                         onColumns = onColumns,
                         onPickImage = onPickImage,
                         onUseImage = onUseImage,
@@ -263,8 +263,8 @@ private fun SectionNavRow(
 private fun AppearancePane(
     settings: LauncherSettings,
     onWallpaper: (Int) -> Unit,
-    onAnimated: (Boolean) -> Unit,
     onBlurred: (Boolean) -> Unit,
+    onGlassBlur: (Boolean) -> Unit,
     onColumns: (Int) -> Unit,
     onPickImage: () -> Unit,
     onUseImage: () -> Unit,
@@ -345,19 +345,13 @@ private fun AppearancePane(
             }
         }
 
-        SectionLabel("Motion")
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            ToggleChip("Animated", settings.animated) { onAnimated(true) }
-            ToggleChip("Static", !settings.animated) { onAnimated(false) }
-        }
-
         SectionLabel("Reduce motion")
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             ToggleChip("On", reduceMotion) { onReduceMotion(true) }
             ToggleChip("Off", !reduceMotion) { onReduceMotion(false) }
         }
         Text(
-            "Calms the interface: no wallpaper drift, no artwork slideshow, and tiles snap into focus instead of springing.",
+            "Calms the interface: no Frame Art drift, no artwork slideshow, app-launch animation off, and tiles snap into focus instead of springing.",
             color = LocalLauncherColors.current.textDim,
             fontSize = 13.sp,
             modifier = Modifier.fillMaxWidth(0.85f),
@@ -368,6 +362,19 @@ private fun AppearancePane(
             ToggleChip("Blurred", settings.blurred) { onBlurred(true) }
             ToggleChip("Sharp", !settings.blurred) { onBlurred(false) }
         }
+
+        SectionLabel("Glass blur")
+        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            ToggleChip("On", settings.glassBlur) { onGlassBlur(true) }
+            ToggleChip("Off", !settings.glassBlur) { onGlassBlur(false) }
+        }
+        Text(
+            "Frosts the wallpaper behind the top bar and dock. Turning it off (a flat tint instead) is " +
+                "the single biggest GPU saving on a slower TV.",
+            color = LocalLauncherColors.current.textDim,
+            fontSize = 13.sp,
+            modifier = Modifier.fillMaxWidth(0.85f),
+        )
 
         // Breathing room so the last section can scroll clear of the screen edge.
         Spacer(Modifier.height(44.dp))

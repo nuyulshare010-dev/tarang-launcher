@@ -20,6 +20,7 @@ import androidx.compose.ui.graphics.RenderEffect
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.asComposeRenderEffect
+import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
@@ -52,6 +53,11 @@ private const val REFRACTION_AGSL = """
     }
 """
 
+// We blur a HALF-resolution copy of the backdrop slice (1/4 the pixels through the blur kernel), then
+// upscale the result — the detail is gone to the blur anyway, so it's invisible but much cheaper on a
+// weak TV GPU.
+private const val GLASS_DOWNSCALE = 0.5f
+
 /**
  * tvOS "Liquid Glass": blurs the recorded [backdrop] wallpaper directly behind this element (a true
  * frosted-glass backdrop), then layers a legibility [tint], an optional content-aware [accent]
@@ -63,8 +69,9 @@ private const val REFRACTION_AGSL = """
  * layer that recorded the wallpaper (see LauncherScreen) — it re-draws that layer shifted by its own
  * on-screen position so the blurred slice lines up.
  *
- * [live] gates the expensive part: when false (e.g. mid launch/return animation) the blur + refraction
- * is skipped and only the cheap tint + sheen + rim are drawn, freeing the GPU for the animation.
+ * [live] gates the per-frame backdrop RE-CAPTURE; when false the last captured slice is reused (frozen
+ * glass, still frosted — used mid launch/return zoom). [refract] gates the AGSL edge refraction: pass
+ * false while anything is animating, since the bevel is imperceptible mid-motion but costs a shader pass.
  */
 @Composable
 fun Modifier.frostedGlass(
@@ -72,39 +79,60 @@ fun Modifier.frostedGlass(
     shape: Shape,
     tint: Color,
     accent: Color? = null,
-    blurRadius: Dp = 22.dp,
+    blurRadius: Dp = 16.dp,
     live: Boolean = true,
+    refract: Boolean = true,
+    blur: Boolean = true,
 ): Modifier {
     val layer = rememberGraphicsLayer()
     var offset by remember { mutableStateOf(Offset.Zero) }
     var glassSize by remember { mutableStateOf(IntSize.Zero) }
     val supportsBlur = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
     val supportsShader = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
-    val blurPx = with(LocalDensity.current) { blurRadius.toPx() }
+    // Blur runs on the half-res copy, so halve the kernel too (it's upscaled back afterwards).
+    val blurPx = with(LocalDensity.current) { blurRadius.toPx() } * GLASS_DOWNSCALE
     // Beveled edge: a bright specular highlight at the top-left fading to a faint shadow bottom-right.
     val rim = Brush.linearGradient(listOf(Color.White.copy(alpha = 0.5f), Color.Black.copy(alpha = 0.12f)))
+    // Half-resolution capture/blur size.
+    val dsSize = IntSize(
+        (glassSize.width * GLASS_DOWNSCALE).toInt().coerceAtLeast(1),
+        (glassSize.height * GLASS_DOWNSCALE).toInt().coerceAtLeast(1),
+    )
 
-    // Liquid glass is always on: build the refraction shader wherever the device supports AGSL
-    // (Android 13+); older devices fall back to a plain blur inside glassEffect.
+    // Liquid glass is on at rest: build the refraction shader wherever the device supports AGSL
+    // (Android 13+). Two effects — blur+refraction for the resting glass, blur-only for while moving.
     val shader = remember(supportsShader) { if (supportsShader) RuntimeShader(REFRACTION_AGSL) else null }
-    // Rebuild the render effect only when size / blur changes (not every frame).
-    val effect: RenderEffect? = remember(glassSize, blurPx, supportsBlur) {
-        if (!supportsBlur) null else glassEffect(blurPx, glassSize, shader)
+    val refractEffect: RenderEffect? = remember(dsSize, blurPx, supportsBlur) {
+        if (!supportsBlur) null else glassEffect(blurPx, dsSize, shader)
     }
+    val blurEffect: RenderEffect? = remember(dsSize, blurPx, supportsBlur) {
+        if (!supportsBlur) null else glassEffect(blurPx, dsSize, null)
+    }
+    // [blur] off → no backdrop effect at all: just the flat tint + sheen + rim (and the caller skips
+    // the backdrop capture entirely, so nothing is sampled).
+    val effect = if (!blur) null else if (refract) refractEffect else blurEffect
 
     return this
         .onGloballyPositioned { offset = it.positionInRoot(); glassSize = it.size }
         .clip(shape)
         .drawBehind {
-            if (effect != null) {
+            if (effect != null && glassSize.width > 0 && glassSize.height > 0) {
                 layer.renderEffect = effect
                 // [live] only gates the expensive re-capture of the backdrop slice. When frozen we
                 // still draw the LAST captured slice, so the glass stays frosted mid-animation instead
                 // of dropping to a near-transparent tint (which read as a flash on Frame Art enter/exit).
                 if (live) {
-                    layer.record { translate(-offset.x, -offset.y) { drawLayer(backdrop) } }
+                    // Capture the backdrop slice at half resolution (scale the draw down into dsSize).
+                    layer.record(dsSize) {
+                        scale(GLASS_DOWNSCALE, GLASS_DOWNSCALE, pivot = Offset.Zero) {
+                            translate(-offset.x, -offset.y) { drawLayer(backdrop) }
+                        }
+                    }
                 }
-                drawLayer(layer)
+                // Upscale the blurred half-res slice back to full size.
+                scale(1f / GLASS_DOWNSCALE, 1f / GLASS_DOWNSCALE, pivot = Offset.Zero) {
+                    drawLayer(layer)
+                }
             }
             drawRect(tint)
             accent?.let { drawRect(it.copy(alpha = 0.10f)) }
