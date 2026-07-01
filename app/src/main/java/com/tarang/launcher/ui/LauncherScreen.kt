@@ -49,7 +49,6 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -158,8 +157,6 @@ fun LauncherScreen(
 
     // Which motion "personality" the transitions use (an experiment switch in Appearance).
     val style = settings.animStyle
-    // DEPTH blur radius in px (0 when unsupported → DEPTH degrades to a scale + fade).
-    val depthBlurPx = if (BLUR_SUPPORTED) with(LocalDensity.current) { 22.dp.toPx() } else 0f
 
     // "Choose Home app" is only offered when the device actually exposes a Home-app chooser (often
     // absent on Google TV, where the redirect accessibility service is the real mechanism).
@@ -462,7 +459,6 @@ fun LauncherScreen(
                                 ChromeLayer.TOP_BAR,
                                 frameP = topBarProgress.value,
                                 launchP = topBarLaunch.value,
-                                blurPx = depthBlurPx,
                             )
                         },
                     ) {
@@ -493,7 +489,6 @@ fun LauncherScreen(
                                     ChromeLayer.DOCK,
                                     frameP = dockProgress.value,
                                     launchP = dockLaunch.value,
-                                    blurPx = depthBlurPx,
                                 )
                             },
                     ) {

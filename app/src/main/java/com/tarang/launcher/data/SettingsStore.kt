@@ -45,7 +45,7 @@ enum class FrameClockSize { SMALL, MEDIUM, LARGE }
  *
  * - [BASELINE]  the shipped v0.2.2 motion: chrome scales up + flies apart (fixed tweens).
  * - [GLIDE]     fluid, spring-driven slides, no blur — cheapest and safest on weak TVs.
- * - [DEPTH]     z-axis: the home plane recedes+blurs to a painting, dives+blurs into an app.
+ * - [DEPTH]     z-axis: the home plane recedes to a painting, dives into an app (scale + fade).
  */
 enum class AnimStyle { BASELINE, GLIDE, DEPTH }
 

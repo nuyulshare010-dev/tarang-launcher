@@ -302,7 +302,7 @@ private fun AppearancePane(
             when (settings.animStyle) {
                 AnimStyle.BASELINE -> "The default motion: the chrome scales up and flies apart (fixed tweens)."
                 AnimStyle.GLIDE -> "Fluid springs: the chrome glides off and settles. No blur — smoothest on a slow TV."
-                AnimStyle.DEPTH -> "Depth: the home screen recedes and blurs into a painting; dives and blurs into an app."
+                AnimStyle.DEPTH -> "Depth: the home screen recedes into a painting, and dives forward into an app."
             },
             color = LocalLauncherColors.current.textDim,
             fontSize = 13.sp,

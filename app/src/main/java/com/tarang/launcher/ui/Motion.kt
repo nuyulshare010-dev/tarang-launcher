@@ -1,13 +1,11 @@
 package com.tarang.launcher.ui
 
-import android.os.Build
 import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.graphics.TransformOrigin
-import androidx.compose.ui.graphics.asComposeRenderEffect
 import com.tarang.launcher.data.AnimStyle
 
 /**
@@ -28,16 +26,18 @@ private val StandardEase = CubicBezierEasing(0.4f, 0.0f, 0.2f, 1f)
 private val DecelEase = CubicBezierEasing(0.0f, 0.0f, 0.2f, 1f)
 private val AccelEase = CubicBezierEasing(0.4f, 0.0f, 1f, 1f)
 
-/** Blur is only available (RenderEffect) on API 31+. Below that, DEPTH degrades to scale+fade only. */
-val BLUR_SUPPORTED: Boolean = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
-
 // GLIDE's progress (0..1) is multiplied by the box height (~950px) to drive translation, so a spring's
 // default 0.01 visibility threshold would let it "settle" a visible ~9px from the target and then snap
 // there on the last frame. A sub-pixel threshold makes the tail land smoothly on the resting position.
 private const val GLIDE_THRESHOLD = 0.0002f
 
+// GLIDE felt too fast on real TV hardware, so slow every glide spring ~2.5×. A spring's settling time
+// scales with 1/√stiffness, so 2.5× slower ≈ stiffness ÷ 2.5² (÷6.25). Dividing here (and keeping the
+// original stiffness numbers at the call sites) preserves the relative pacing between the layers.
+private const val GLIDE_SLOWDOWN = 6.25f
+
 private fun glideSpring(dampingRatio: Float, stiffness: Float): AnimationSpec<Float> =
-    spring(dampingRatio, stiffness, visibilityThreshold = GLIDE_THRESHOLD)
+    spring(dampingRatio, stiffness / GLIDE_SLOWDOWN, visibilityThreshold = GLIDE_THRESHOLD)
 
 // ---------------------------------------------------------------------------------------------------
 // Timing — the AnimationSpecs the launcher's Animatables run on. Frame transitions are calm/slow; app
@@ -89,20 +89,17 @@ fun launchTopBarSpec(style: AnimStyle, entering: Boolean): AnimationSpec<Float> 
 /**
  * Shape the chrome for the current style. Called from the layer's `graphicsLayer {}` where `size` is
  * the layer's own size.
- *
- * @param blurPx max blur radius in px for DEPTH (0 disables it).
  */
 fun GraphicsLayerScope.applyChrome(
     style: AnimStyle,
     layer: ChromeLayer,
     frameP: Float,
     launchP: Float,
-    blurPx: Float = 0f,
 ) {
     when (style) {
         AnimStyle.BASELINE -> baseline(layer, maxOf(frameP, launchP))
         AnimStyle.GLIDE -> glide(layer, maxOf(frameP, launchP))
-        AnimStyle.DEPTH -> depth(layer, frameP, launchP, blurPx)
+        AnimStyle.DEPTH -> depth(layer, frameP, launchP)
     }
 }
 
@@ -143,18 +140,13 @@ private fun GraphicsLayerScope.glide(layer: ChromeLayer, p: Float) {
     }
 }
 
-/** Z-axis depth: recede (scale <1) + blur toward Frame Art; approach (scale >1) + blur into an app. */
-private fun GraphicsLayerScope.depth(layer: ChromeLayer, frameP: Float, launchP: Float, blurPx: Float) {
+/** Z-axis depth: recede (scale <1) toward Frame Art; approach (scale >1) into an app. */
+private fun GraphicsLayerScope.depth(layer: ChromeLayer, frameP: Float, launchP: Float) {
     val p = maxOf(frameP, launchP)
     alpha = 1f - (p * 1.5f).coerceAtMost(1f)
-    renderEffect = if (blurPx > 0f && p > 0.001f && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        val r = blurPx * p
-        android.graphics.RenderEffect
-            .createBlurEffect(r, r, android.graphics.Shader.TileMode.CLAMP)
-            .asComposeRenderEffect()
-    } else {
-        null
-    }
+    // No blur: an animated RenderEffect blur on these full-screen layers is far too heavy on weak TV
+    // GPUs (it re-blurs every frame — janks badly on the Chromecast). The scale recede/approach + fade,
+    // plus the art rising forward, carry the depth on their own at essentially no GPU cost.
     // recede on frame-enter (down to 0.9), approach on launch (up to ~1.14). Mutually exclusive.
     val recede = 1f - 0.10f * frameP
     val approach = 1f + 0.14f * launchP
