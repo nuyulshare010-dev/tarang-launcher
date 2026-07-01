@@ -19,7 +19,9 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -60,6 +62,27 @@ import kotlin.math.sin
 private const val FADE_MS = 1600
 private const val FLOAT_PERIOD_MS = 36_000 // one full figure-8 loop — very slow on purpose
 
+/**
+ * Shared controller for Frame Art photo paging. The folder slideshow reports how many photos it holds
+ * (via [photoCount]) so the launcher knows whether a Left/Right press should page through them or fall
+ * through to "exit Frame Art"; the launcher pushes [next]/[previous] requests back down. Single-photo
+ * and current-wallpaper sources have no slideshow, so [photoCount] stays 0 and paging is disabled.
+ */
+@Stable
+class FrameNavState {
+    var photoCount by mutableIntStateOf(0)
+    var navTick by mutableIntStateOf(0)
+        private set
+    var navDirection by mutableIntStateOf(0)
+        private set
+
+    /** Whether there's more than one photo to page through. */
+    val canPage: Boolean get() = photoCount > 1
+
+    fun next() { navDirection = 1; navTick++ }
+    fun previous() { navDirection = -1; navTick++ }
+}
+
 // Slight overscan so the drift never reveals an edge. Applied even when still, so the still wallpaper
 // and the drifting frame share the exact same framing — entering frame mode then has no scale "jump".
 private const val FRAME_BASE_SCALE = 1.06f
@@ -79,6 +102,7 @@ fun FrameSlideshow(
     driftAmount: () -> Float,
     cycle: Boolean,
     shuffle: Boolean,
+    nav: FrameNavState,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -92,14 +116,27 @@ fun FrameSlideshow(
 
     var index by remember(photos) { mutableIntStateOf(0) }
     val intervalMs = (intervalSec.coerceAtLeast(5)) * 1000L
-    // Only advance when [cycle] is on (e.g. full frame mode, or an animated home wallpaper); a still
-    // wallpaper holds one photo and runs no timer.
-    if (cycle && photos.size > 1) {
-        LaunchedEffect(photos, intervalMs) {
-            while (true) {
-                delay(intervalMs)
-                index = (index + 1) % photos.size
-            }
+
+    // Report the photo count up so the launcher can decide Left/Right = page vs. exit. Reset on leave
+    // so a later single-photo / wallpaper source doesn't inherit a stale count.
+    LaunchedEffect(photos.size) { nav.photoCount = photos.size }
+    DisposableEffect(Unit) { onDispose { nav.photoCount = 0 } }
+
+    // Manual paging: a Left/Right press bumps [nav.navTick]; step the index by the requested direction,
+    // wrapping around both ends.
+    LaunchedEffect(nav.navTick) {
+        if (nav.navTick > 0 && photos.size > 1) {
+            index = ((index + nav.navDirection) % photos.size + photos.size) % photos.size
+        }
+    }
+
+    // Auto-advance while [cycle] is on (full frame mode). Re-keyed on [index] so a manual page also
+    // resets this timer — no jarring auto-jump right after the user pages by hand. A still wallpaper
+    // (cycle off) or a single photo runs no timer.
+    LaunchedEffect(index, photos, intervalMs, cycle) {
+        if (cycle && photos.size > 1) {
+            delay(intervalMs)
+            index = (index + 1) % photos.size
         }
     }
 

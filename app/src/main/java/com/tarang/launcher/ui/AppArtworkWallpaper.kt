@@ -24,7 +24,6 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
 import com.tarang.launcher.data.TvArtwork
 import kotlinx.coroutines.delay
 
@@ -39,7 +38,6 @@ private const val FADE_MS = 1200 // cross-fade between posters
 @Composable
 fun AppArtworkWallpaper(
     packageName: String,
-    blurred: Boolean,
     isDark: Boolean,
     modifier: Modifier = Modifier,
     reduceMotion: Boolean = false,
@@ -85,8 +83,7 @@ fun AppArtworkWallpaper(
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
                         .fillMaxSize()
-                        .graphicsLayer { scaleX = scale; scaleY = scale }
-                        .let { if (blurred) it.blurCompat(32.dp) else it },
+                        .graphicsLayer { scaleX = scale; scaleY = scale },
                 )
             }
         }

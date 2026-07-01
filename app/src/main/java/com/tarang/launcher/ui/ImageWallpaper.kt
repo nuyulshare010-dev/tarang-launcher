@@ -16,7 +16,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -25,11 +24,10 @@ import java.io.File
  * A user-chosen photo as the launcher background. The picked image is copied into app storage
  * (see [copyImageToInternal]) so it survives reboots and the source being removed; here we just
  * decode that local file (down-sampled) and crop-fill it, with a soft scrim so the clock, status
- * pill and tiles stay legible over bright photos. [blurred] reuses the same blur toggle as the
- * gradient wallpaper.
+ * pill and tiles stay legible over bright photos.
  */
 @Composable
-fun ImageWallpaper(path: String, blurred: Boolean, isDark: Boolean, modifier: Modifier = Modifier) {
+fun ImageWallpaper(path: String, isDark: Boolean, modifier: Modifier = Modifier) {
     val image by produceState<ImageBitmap?>(initialValue = null, key1 = path) {
         value = withContext(Dispatchers.IO) { decodeSampled(path, 1920, 1080) }
     }
@@ -41,7 +39,7 @@ fun ImageWallpaper(path: String, blurred: Boolean, isDark: Boolean, modifier: Mo
             Image(
                 bitmap = img,
                 contentDescription = null,
-                modifier = Modifier.fillMaxSize().let { if (blurred) it.blurCompat(32.dp) else it },
+                modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop,
             )
         } else {

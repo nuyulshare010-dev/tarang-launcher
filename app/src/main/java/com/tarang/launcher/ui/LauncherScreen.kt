@@ -45,7 +45,9 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.rememberGraphicsLayer
+import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
@@ -141,6 +143,9 @@ fun LauncherScreen(
     // Owns D-pad focus while Frame Art is showing (see the capture layer below), so the grid behind it
     // can't be navigated or clicked (which would silently launch an app).
     val frameCaptureFocus = remember { FocusRequester() }
+    // Frame Art photo paging: the folder slideshow reports its photo count here and the root key
+    // handler pushes Left/Right paging requests down (see the key handler below).
+    val frameNav = remember { FrameNavState() }
     val artworkApp = if (!showSettings && !frameOn) {
         favoriteHover?.takeIf { settings.useAppArtwork && it in settings.artworkApps }
     } else {
@@ -289,12 +294,19 @@ fun LauncherScreen(
             .fillMaxSize()
             .onPreviewKeyEvent { e ->
                 when {
-                    // Frame Art is up: the first key exits it and is swallowed (whole press).
+                    // Frame Art is up. In a folder slideshow with >1 photo, Left/Right page through
+                    // the photos (and stay in Frame Art); any other key exits, swallowing the press.
                     frameOn -> {
                         if (e.type == KeyEventType.KeyDown) {
-                            frameOn = false
-                            wakingUp = true
-                            interaction++
+                            when {
+                                frameNav.canPage && e.key == Key.DirectionRight -> frameNav.next()
+                                frameNav.canPage && e.key == Key.DirectionLeft -> frameNav.previous()
+                                else -> {
+                                    frameOn = false
+                                    wakingUp = true
+                                    interaction++
+                                }
+                            }
                         }
                         true
                     }
@@ -344,7 +356,6 @@ fun LauncherScreen(
                 when {
                     app != null -> AppArtworkWallpaper(
                         packageName = app,
-                        blurred = settings.blurred,
                         isDark = isDark,
                         reduceMotion = settings.reduceMotion,
                         modifier = Modifier.fillMaxSize(),
@@ -357,12 +368,12 @@ fun LauncherScreen(
                         driftAmount = artDriftAmount,
                         cycle = artCycle,
                         isDark = isDark,
+                        nav = frameNav,
                         modifier = Modifier.fillMaxSize(),
                     )
 
                     showImage && imagePath != null -> ImageWallpaper(
                         path = imagePath,
-                        blurred = settings.blurred,
                         isDark = isDark,
                         modifier = Modifier.fillMaxSize(),
                     )
@@ -370,7 +381,6 @@ fun LauncherScreen(
                     else -> AnimatedWallpaper(
                         preset = preset,
                         animated = false, // the wallpaper is always a still gradient now
-                        blurred = settings.blurred,
                         ambient = null,
                         isDark = isDark,
                         modifier = Modifier.fillMaxSize(),
@@ -390,7 +400,7 @@ fun LauncherScreen(
                         scaleY = s
                     },
                 ) {
-                    FrameArtContent(settings, drift = artDrift, driftAmount = artDriftAmount, cycle = artCycle, isDark = isDark, modifier = Modifier.fillMaxSize())
+                    FrameArtContent(settings, drift = artDrift, driftAmount = artDriftAmount, cycle = artCycle, isDark = isDark, nav = frameNav, modifier = Modifier.fillMaxSize())
                 }
             }
         }
@@ -416,7 +426,6 @@ fun LauncherScreen(
                 SettingsScreen(
                     settings = settings,
                     onWallpaper = viewModel::setWallpaper,
-                    onBlurred = viewModel::setBlurred,
                     onGlassBlur = viewModel::setGlassBlur,
                     onColumns = viewModel::setColumns,
                     onPickImage = pickImage,
@@ -681,6 +690,7 @@ private fun FrameArtContent(
     driftAmount: () -> Float,
     cycle: Boolean,
     isDark: Boolean,
+    nav: FrameNavState,
     modifier: Modifier = Modifier,
 ) {
     when {
@@ -688,7 +698,6 @@ private fun FrameArtContent(
             Box(modifier = modifier.frameParallax(drift, driftAmount)) {
                 ImageWallpaper(
                     path = settings.frameImagePath!!,
-                    blurred = false,
                     isDark = isDark,
                     modifier = Modifier.fillMaxSize(),
                 )
@@ -702,6 +711,7 @@ private fun FrameArtContent(
                 driftAmount = driftAmount,
                 cycle = cycle,
                 shuffle = settings.frameShuffle,
+                nav = nav,
                 modifier = modifier,
             )
     }

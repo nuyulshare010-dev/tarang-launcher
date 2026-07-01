@@ -92,7 +92,6 @@ private enum class SettingsSection(val title: String) {
 fun SettingsScreen(
     settings: LauncherSettings,
     onWallpaper: (Int) -> Unit,
-    onBlurred: (Boolean) -> Unit,
     onGlassBlur: (Boolean) -> Unit,
     onColumns: (Int) -> Unit,
     onPickImage: () -> Unit,
@@ -163,7 +162,6 @@ fun SettingsScreen(
                     SettingsSection.APPEARANCE -> AppearancePane(
                         settings = settings,
                         onWallpaper = onWallpaper,
-                        onBlurred = onBlurred,
                         onGlassBlur = onGlassBlur,
                         onColumns = onColumns,
                         onPickImage = onPickImage,
@@ -266,7 +264,6 @@ private fun SectionNavRow(
 private fun AppearancePane(
     settings: LauncherSettings,
     onWallpaper: (Int) -> Unit,
-    onBlurred: (Boolean) -> Unit,
     onGlassBlur: (Boolean) -> Unit,
     onColumns: (Int) -> Unit,
     onPickImage: () -> Unit,
@@ -379,12 +376,6 @@ private fun AppearancePane(
             fontSize = 13.sp,
             modifier = Modifier.fillMaxWidth(0.85f),
         )
-
-        SectionLabel("Background")
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            ToggleChip("Blurred", settings.blurred) { onBlurred(true) }
-            ToggleChip("Sharp", !settings.blurred) { onBlurred(false) }
-        }
 
         SectionLabel("Glass blur")
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {

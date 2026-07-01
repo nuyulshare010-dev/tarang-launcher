@@ -1,6 +1,5 @@
 package com.tarang.launcher.ui
 
-import android.os.Build
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
@@ -13,13 +12,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.dp
 
 /** A wallpaper look: a near-black base plus three soft color blobs. */
 data class WallpaperPreset(
@@ -41,16 +37,14 @@ val WallpaperPresets = listOf(
 /**
  * The launcher background: a [preset]'s near-black base with large, soft, drifting color blobs.
  *
- * Radial gradients are inherently soft (the "blur" look) and cheap to fill, so [blurred] (an extra
- * RenderEffect blur, API-31-gated) is opt-in. When [animated] is false the drift coroutine is
- * cancelled, so the wallpaper is fully static (no per-frame redraw — plan §6). When animated, one
- * blob eases toward [ambient] (the focused app's color).
+ * Radial gradients are inherently soft (the "blur" look) and cheap to fill. When [animated] is false
+ * the drift coroutine is cancelled, so the wallpaper is fully static (no per-frame redraw — plan §6).
+ * When animated, one blob eases toward [ambient] (the focused app's color).
  */
 @Composable
 fun AnimatedWallpaper(
     preset: WallpaperPreset,
     animated: Boolean,
-    blurred: Boolean,
     ambient: Color?,
     isDark: Boolean,
     modifier: Modifier = Modifier,
@@ -72,8 +66,7 @@ fun AnimatedWallpaper(
     val base = if (isDark) preset.base else Color(0xFFECECF1)
     val blobAlpha = if (isDark) floatArrayOf(0.40f, 0.34f, 0.30f) else floatArrayOf(0.22f, 0.20f, 0.18f)
 
-    val canvasModifier = if (blurred) modifier.blurCompat(48.dp) else modifier
-    Canvas(modifier = canvasModifier) {
+    Canvas(modifier = modifier) {
         val d = drift.value
         drawRect(base)
         val w = size.width
@@ -92,7 +85,3 @@ private fun DrawScope.blob(center: Offset, radius: Float, color: Color) {
         center = center,
     )
 }
-
-/** [Modifier.blur] is a no-op below API 31; gate it so we don't pretend to blur on older TVs. */
-internal fun Modifier.blurCompat(radius: Dp): Modifier =
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) this.blur(radius) else this

@@ -58,9 +58,9 @@ val FRAME_AUTOSTART_TIMEOUTS = listOf(0, 60, 120, 300, 600, 1800)
 /** User-tunable launcher look (set from the in-app settings panel). */
 data class LauncherSettings(
     val wallpaperId: Int = 0,
-    val blurred: Boolean = false,
-    /** Frosted-glass blur behind the top bar and dock. Off = a flat tint (no backdrop capture/blur). */
-    val glassBlur: Boolean = true,
+    /** Frosted-glass blur behind the top bar and dock. Off = a flat tint (no backdrop capture/blur).
+     *  Defaults off: it's the single biggest GPU cost on weak TVs, so opt in rather than out. */
+    val glassBlur: Boolean = false,
     /** How many app tiles per row in the grid (and the dock). */
     val columns: Int = DEFAULT_COLUMNS,
     /** When true (and [wallpaperImagePath] resolves) the photo is shown instead of a gradient. */
@@ -116,8 +116,7 @@ class SettingsStore(context: Context) {
     val settings: Flow<LauncherSettings> = dataStore.data.map { p ->
         LauncherSettings(
             wallpaperId = p[WALLPAPER_ID] ?: 0,
-            blurred = p[BLURRED] ?: false,
-            glassBlur = p[GLASS_BLUR] ?: true,
+            glassBlur = p[GLASS_BLUR] ?: false,
             columns = (p[COLUMNS] ?: DEFAULT_COLUMNS).coerceIn(MIN_COLUMNS, MAX_COLUMNS),
             useImageWallpaper = p[USE_IMAGE] ?: false,
             wallpaperImagePath = p[IMAGE_PATH],
@@ -155,7 +154,6 @@ class SettingsStore(context: Context) {
         it[USE_IMAGE] = false
     }
 
-    suspend fun setBlurred(value: Boolean) = dataStore.edit { it[BLURRED] = value }
     suspend fun setGlassBlur(value: Boolean) = dataStore.edit { it[GLASS_BLUR] = value }
     suspend fun setColumns(n: Int) = dataStore.edit { it[COLUMNS] = n.coerceIn(MIN_COLUMNS, MAX_COLUMNS) }
 
@@ -213,7 +211,6 @@ class SettingsStore(context: Context) {
 
     private companion object {
         val WALLPAPER_ID = intPreferencesKey("wallpaper_id")
-        val BLURRED = booleanPreferencesKey("blurred")
         val GLASS_BLUR = booleanPreferencesKey("glass_blur")
         val COLUMNS = intPreferencesKey("columns")
         val USE_IMAGE = booleanPreferencesKey("use_image_wallpaper")
