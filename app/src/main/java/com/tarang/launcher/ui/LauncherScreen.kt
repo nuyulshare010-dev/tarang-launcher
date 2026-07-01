@@ -7,9 +7,6 @@ import android.provider.Settings
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.EaseIn
-import androidx.compose.animation.core.EaseOut
-import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -44,7 +41,6 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
@@ -53,6 +49,7 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -159,6 +156,11 @@ fun LauncherScreen(
     val isDark = rememberIsDark(settings.theme)
     val colors = if (isDark) DarkLauncherColors else LightLauncherColors
 
+    // Which motion "personality" the transitions use (an experiment switch in Appearance).
+    val style = settings.animStyle
+    // DEPTH blur radius in px (0 when unsupported → DEPTH degrades to a scale + fade).
+    val depthBlurPx = if (BLUR_SUPPORTED) with(LocalDensity.current) { 22.dp.toPx() } else 0f
+
     // "Choose Home app" is only offered when the device actually exposes a Home-app chooser (often
     // absent on Google TV, where the redirect accessibility service is the real mechanism).
     val chooseHomeApp: (() -> Unit)? = remember(context) {
@@ -188,11 +190,9 @@ fun LauncherScreen(
     // and the clock fade in, then reverse on exit.
     val frameProgress = remember { Animatable(0f) }
     LaunchedEffect(frameOn) {
-        frameProgress.animateTo(
-            if (frameOn) 1f else 0f,
-            // A calm, deliberate chrome transition — same speed both ways so enter/exit feel symmetric.
-            tween(durationMillis = 1700, easing = FastOutSlowInEasing),
-        )
+        // Timing per the selected style (see Motion.kt). Read at animation start, so switching styles
+        // at rest takes effect on the next transition.
+        frameProgress.animateTo(if (frameOn) 1f else 0f, frameMasterSpec(style))
     }
     // The two chrome layers leave/return on their own timelines for a layered feel — the dock leads,
     // the top bar trails. The master [frameProgress] above still drives the clock + wallpaper crossfade
@@ -200,10 +200,10 @@ fun LauncherScreen(
     val dockProgress = remember { Animatable(0f) }
     val topBarProgress = remember { Animatable(0f) }
     LaunchedEffect(frameOn) {
-        dockProgress.animateTo(if (frameOn) 1f else 0f, tween(durationMillis = 1200, easing = FastOutSlowInEasing))
+        dockProgress.animateTo(if (frameOn) 1f else 0f, frameDockSpec(style))
     }
     LaunchedEffect(frameOn) {
-        topBarProgress.animateTo(if (frameOn) 1f else 0f, tween(durationMillis = 1500, easing = FastOutSlowInEasing))
+        topBarProgress.animateTo(if (frameOn) 1f else 0f, frameTopBarSpec(style))
     }
     val frameSettled by remember { derivedStateOf { frameProgress.value > 0.999f } }
     val chromePresent by remember { derivedStateOf { frameProgress.value < 0.999f } }
@@ -270,20 +270,19 @@ fun LauncherScreen(
     }
     LaunchedEffect(launchTick) {
         if (launchTick > 0) {
-            // Leaving for the app: ease IN (start slow, accelerate away). Dock leads (600ms), top bar
-            // trails (900ms). Run them in parallel so each keeps its own duration.
-            launch { dockLaunch.animateTo(1f, tween(durationMillis = 600, easing = EaseIn)) }
-            launch { topBarLaunch.animateTo(1f, tween(durationMillis = 900, easing = EaseIn)) }
+            // Leaving for the app. The dock leads, the top bar trails; per-style timing (Motion.kt). Run
+            // them in parallel so each keeps its own duration.
+            launch { dockLaunch.animateTo(1f, launchDockSpec(style, entering = true)) }
+            launch { topBarLaunch.animateTo(1f, launchTopBarSpec(style, entering = true)) }
         }
     }
     LaunchedEffect(returnTick) {
         if (returnTick > 0) {
-            // Returning from the app: the reverse — start from the launched state and ease OUT (rush in,
-            // decelerate to rest), same staggered durations.
+            // Returning from the app: start from the launched state and reverse home.
             dockLaunch.snapTo(1f)
             topBarLaunch.snapTo(1f)
-            launch { dockLaunch.animateTo(0f, tween(durationMillis = 600, easing = EaseOut)) }
-            launch { topBarLaunch.animateTo(0f, tween(durationMillis = 900, easing = EaseOut)) }
+            launch { dockLaunch.animateTo(0f, launchDockSpec(style, entering = false)) }
+            launch { topBarLaunch.animateTo(0f, launchTopBarSpec(style, entering = false)) }
         }
     }
 
@@ -385,7 +384,15 @@ fun LauncherScreen(
             // the current wallpaper as the chrome leaves. (The "current wallpaper" frame source has no
             // art of its own, so nothing overlays — it just shows the wallpaper full-screen.)
             if (framePartly && frameArtConfigured && !frameArtIsWallpaper) {
-                Box(modifier = Modifier.fillMaxSize().graphicsLayer { alpha = frameProgress.value }) {
+                Box(
+                    modifier = Modifier.fillMaxSize().graphicsLayer {
+                        alpha = frameProgress.value
+                        // DEPTH lets the art rise forward from a hair larger; others just crossfade.
+                        val s = artEntryScale(style, frameProgress.value)
+                        scaleX = s
+                        scaleY = s
+                    },
+                ) {
                     FrameArtContent(settings, drift = artDrift, driftAmount = artDriftAmount, cycle = artCycle, isDark = isDark, modifier = Modifier.fillMaxSize())
                 }
             }
@@ -425,6 +432,7 @@ fun LauncherScreen(
                     onTheme = viewModel::setTheme,
                     reduceMotion = settings.reduceMotion,
                     onReduceMotion = viewModel::setReduceMotion,
+                    onAnimStyle = viewModel::setAnimStyle,
                     hiddenApps = uiState.allApps.filter { it.packageName in settings.hiddenApps },
                     onUnhideApp = { viewModel.setAppHidden(it, false) },
                     onFrameSource = viewModel::setFrameSource,
@@ -449,9 +457,13 @@ fun LauncherScreen(
                     // launch (topBarLaunch), so launching an app uses the same chrome choreography.
                     Box(
                         modifier = Modifier.fillMaxWidth().graphicsLayer {
-                            val p = maxOf(topBarProgress.value, topBarLaunch.value)
-                            translationY = -p * (size.height + 48f)
-                            alpha = 1f - (p * 1.7f).coerceAtMost(1f)
+                            applyChrome(
+                                style,
+                                ChromeLayer.TOP_BAR,
+                                frameP = topBarProgress.value,
+                                launchP = topBarLaunch.value,
+                                blurPx = depthBlurPx,
+                            )
                         },
                     ) {
                         TopBar(
@@ -476,13 +488,13 @@ fun LauncherScreen(
                             .weight(1f)
                             .fillMaxWidth()
                             .graphicsLayer {
-                                val p = maxOf(dockProgress.value, dockLaunch.value)
-                                val s = 1f + 0.28f * p
-                                scaleX = s
-                                scaleY = s
-                                translationY = p * size.height * 0.55f
-                                alpha = 1f - (p * 1.7f).coerceAtMost(1f)
-                                transformOrigin = TransformOrigin(0.5f, 0.85f)
+                                applyChrome(
+                                    style,
+                                    ChromeLayer.DOCK,
+                                    frameP = dockProgress.value,
+                                    launchP = dockLaunch.value,
+                                    blurPx = depthBlurPx,
+                                )
                             },
                     ) {
                         when {

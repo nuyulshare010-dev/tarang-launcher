@@ -114,6 +114,8 @@ class LauncherViewModel(
     fun setTheme(mode: com.tarang.launcher.data.ThemeMode) =
         viewModelScope.launch { settingsStore.setTheme(mode) }.let {}
     fun setReduceMotion(value: Boolean) = viewModelScope.launch { settingsStore.setReduceMotion(value) }.let {}
+    fun setAnimStyle(style: com.tarang.launcher.data.AnimStyle) =
+        viewModelScope.launch { settingsStore.setAnimStyle(style) }.let {}
     fun setAppHidden(packageName: String, hidden: Boolean) =
         viewModelScope.launch { settingsStore.setAppHidden(packageName, hidden) }.let {}
     fun setFrameSource(source: com.tarang.launcher.data.FrameSource) =

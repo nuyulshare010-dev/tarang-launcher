@@ -39,6 +39,16 @@ enum class FrameClockPosition { BOTTOM_LEFT, BOTTOM_CENTER, BOTTOM_RIGHT, CENTER
 /** Frame Art clock size. */
 enum class FrameClockSize { SMALL, MEDIUM, LARGE }
 
+/**
+ * The transition "personality" used for the four big moves (enter/exit Frame Art, launch/return an
+ * app). An experiment switch so the different motion languages can be A/B'd live on-device.
+ *
+ * - [BASELINE]  the shipped v0.2.2 motion: chrome scales up + flies apart (fixed tweens).
+ * - [GLIDE]     fluid, spring-driven slides, no blur — cheapest and safest on weak TVs.
+ * - [DEPTH]     z-axis: the home plane recedes+blurs to a painting, dives+blurs into an app.
+ */
+enum class AnimStyle { BASELINE, GLIDE, DEPTH }
+
 /** Slideshow switch intervals (seconds) offered for the folder source. */
 val FRAME_INTERVALS = listOf(10, 30, 60, 300, 900)
 
@@ -65,6 +75,8 @@ data class LauncherSettings(
     val theme: ThemeMode = ThemeMode.DARK,
     /** Calm everything down: no wallpaper drift, slideshow, or tile-focus spring. */
     val reduceMotion: Boolean = false,
+    /** Which transition "personality" the four big moves use (an experiment switch). */
+    val animStyle: AnimStyle = AnimStyle.BASELINE,
     /** Packages the user has hidden from the grid (still launchable, just out of sight). */
     val hiddenApps: Set<String> = emptySet(),
     /** What Frame Art shows (defaults to the current wallpaper). */
@@ -113,6 +125,7 @@ class SettingsStore(context: Context) {
             artworkApps = p[ARTWORK_APPS] ?: emptySet(),
             theme = runCatching { ThemeMode.valueOf(p[THEME] ?: "DARK") }.getOrDefault(ThemeMode.DARK),
             reduceMotion = p[REDUCE_MOTION] ?: false,
+            animStyle = runCatching { AnimStyle.valueOf(p[ANIM_STYLE] ?: "BASELINE") }.getOrDefault(AnimStyle.BASELINE),
             hiddenApps = p[HIDDEN_APPS] ?: emptySet(),
             frameSource = runCatching {
                 FrameSource.valueOf(p[FRAME_SOURCE] ?: "WALLPAPER")
@@ -165,6 +178,7 @@ class SettingsStore(context: Context) {
 
     suspend fun setTheme(mode: ThemeMode) = dataStore.edit { it[THEME] = mode.name }
     suspend fun setReduceMotion(value: Boolean) = dataStore.edit { it[REDUCE_MOTION] = value }
+    suspend fun setAnimStyle(style: AnimStyle) = dataStore.edit { it[ANIM_STYLE] = style.name }
 
     /** Hides/unhides an app from the grid. */
     suspend fun setAppHidden(packageName: String, hidden: Boolean) = dataStore.edit { p ->
@@ -208,6 +222,7 @@ class SettingsStore(context: Context) {
         val ARTWORK_APPS = stringSetPreferencesKey("artwork_apps")
         val THEME = stringPreferencesKey("theme")
         val REDUCE_MOTION = booleanPreferencesKey("reduce_motion")
+        val ANIM_STYLE = stringPreferencesKey("anim_style")
         val HIDDEN_APPS = stringSetPreferencesKey("hidden_apps")
         val FRAME_SOURCE = stringPreferencesKey("frame_source")
         val FRAME_FOLDER_ID = stringPreferencesKey("frame_folder_id")

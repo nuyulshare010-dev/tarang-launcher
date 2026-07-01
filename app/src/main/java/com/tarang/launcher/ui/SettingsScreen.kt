@@ -57,6 +57,7 @@ import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
+import com.tarang.launcher.data.AnimStyle
 import com.tarang.launcher.data.AppArtwork
 import com.tarang.launcher.data.AppInfo
 import com.tarang.launcher.data.FRAME_AUTOSTART_TIMEOUTS
@@ -104,6 +105,7 @@ fun SettingsScreen(
     onTheme: (ThemeMode) -> Unit,
     reduceMotion: Boolean,
     onReduceMotion: (Boolean) -> Unit,
+    onAnimStyle: (AnimStyle) -> Unit,
     hiddenApps: List<AppInfo>,
     onUnhideApp: (String) -> Unit,
     onFrameSource: (FrameSource) -> Unit,
@@ -173,6 +175,7 @@ fun SettingsScreen(
                         onTheme = onTheme,
                         reduceMotion = reduceMotion,
                         onReduceMotion = onReduceMotion,
+                        onAnimStyle = onAnimStyle,
                         onUseFrameArtWallpaper = onUseFrameArtWallpaper,
                     )
 
@@ -275,6 +278,7 @@ private fun AppearancePane(
     onTheme: (ThemeMode) -> Unit,
     reduceMotion: Boolean,
     onReduceMotion: (Boolean) -> Unit,
+    onAnimStyle: (AnimStyle) -> Unit,
     onUseFrameArtWallpaper: (Boolean) -> Unit,
 ) {
     val thumb = rememberWallpaperThumb(settings.wallpaperImagePath)
@@ -285,6 +289,25 @@ private fun AppearancePane(
         verticalArrangement = Arrangement.spacedBy(22.dp),
     ) {
         PaneTitle("Appearance")
+
+        // Experiment switch: flip between the transition "personalities" and try them live
+        // (enter/exit Frame Art, launch/return an app). Placed first so it's quick to reach.
+        SectionLabel("Animation style")
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            ToggleChip("Default", settings.animStyle == AnimStyle.BASELINE) { onAnimStyle(AnimStyle.BASELINE) }
+            ToggleChip("Glide", settings.animStyle == AnimStyle.GLIDE) { onAnimStyle(AnimStyle.GLIDE) }
+            ToggleChip("Depth", settings.animStyle == AnimStyle.DEPTH) { onAnimStyle(AnimStyle.DEPTH) }
+        }
+        Text(
+            when (settings.animStyle) {
+                AnimStyle.BASELINE -> "The default motion: the chrome scales up and flies apart (fixed tweens)."
+                AnimStyle.GLIDE -> "Fluid springs: the chrome glides off and settles. No blur — smoothest on a slow TV."
+                AnimStyle.DEPTH -> "Depth: the home screen recedes and blurs into a painting; dives and blurs into an app."
+            },
+            color = LocalLauncherColors.current.textDim,
+            fontSize = 13.sp,
+            modifier = Modifier.fillMaxWidth(0.85f),
+        )
 
         SectionLabel("Theme")
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
