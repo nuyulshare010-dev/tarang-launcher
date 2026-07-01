@@ -2,7 +2,8 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
-    alias(libs.plugins.baselineprofile)
+    // Sementara nonaktifkan baseline profile jika masih error
+    // alias(libs.plugins.baselineprofile)
 }
 
 android {
@@ -11,28 +12,33 @@ android {
 
     defaultConfig {
         applicationId = "com.tarang.launcher"
-        minSdk = 28
+        minSdk = 23                      // ✨ diubah dari 28 ke 23
         targetSdk = 35
         versionCode = 7
         versionName = "0.2.4"
+
+        // Tambahkan multiDex (opsional tapi aman)
+        multiDexEnabled = true
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
-            // Sign release with the debug key so it can be sideloaded directly (this is a personal
-            // launcher, not a Play Store app). A release build is far faster than debug on-device.
             signingConfig = signingConfigs.getByName("debug")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+            // Nonaktifkan baseline profile jika menggunakan plugin
+            // enableProfileInstaller = false
         }
     }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        // Aktifkan desugaring untuk API < 24 (opsional)
+        isCoreLibraryDesugaringEnabled = true
     }
 
     kotlinOptions {
@@ -58,13 +64,15 @@ dependencies {
     implementation(libs.androidx.tv.material)
     implementation(libs.androidx.palette)
     implementation(libs.androidx.datastore.preferences)
-    // Applies the bundled baseline profile on-device (esp. for sideloaded APKs, which don't get
-    // Play's install-time AOT — ProfileInstaller writes it and ART compiles during idle).
-    implementation(libs.androidx.profileinstaller)
+
+    // Hapus atau komen sementara jika baseline profile bermasalah
+    // implementation(libs.androidx.profileinstaller)
 
     debugImplementation(libs.androidx.compose.ui.tooling)
 
-    // The :baselineprofile module produces app/src/<variant>/generated/baselineProfiles/*.txt,
-    // which the baselineprofile plugin merges into the release APK at build time.
-    "baselineProfile"(project(":baselineprofile"))
+    // Sementara nonaktifkan module baselineprofile
+    // "baselineProfile"(project(":baselineprofile"))
+
+    // Tambahkan coreLibraryDesugaring jika compileOptions sudah diaktifkan
+    // coreLibraryDesugaring(libs.desugar.jdk.libs) // sesuaikan dengan version catalog
 }
