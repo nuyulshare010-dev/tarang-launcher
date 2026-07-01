@@ -2,7 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
-    // Sementara nonaktifkan baseline profile jika masih error
+    // Nonaktifkan sementara jika baseline profile bermasalah
     // alias(libs.plugins.baselineprofile)
 }
 
@@ -12,12 +12,11 @@ android {
 
     defaultConfig {
         applicationId = "com.tarang.launcher"
-        minSdk = 23                      // ✨ diubah dari 28 ke 23
+        minSdk = 23
         targetSdk = 35
         versionCode = 7
         versionName = "0.2.4"
 
-        // Tambahkan multiDex (opsional tapi aman)
         multiDexEnabled = true
     }
 
@@ -29,7 +28,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
-            // Nonaktifkan baseline profile jika menggunakan plugin
+            // Jika baseline profile diaktifkan, tambahkan:
             // enableProfileInstaller = false
         }
     }
@@ -37,7 +36,7 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
-        // Aktifkan desugaring untuk API < 24 (opsional)
+        // Aktifkan desugaring untuk API < 24
         isCoreLibraryDesugaringEnabled = true
     }
 
@@ -65,14 +64,14 @@ dependencies {
     implementation(libs.androidx.palette)
     implementation(libs.androidx.datastore.preferences)
 
-    // Hapus atau komen sementara jika baseline profile bermasalah
+    // Jika baseline profile tidak dipakai, komentari atau hapus:
     // implementation(libs.androidx.profileinstaller)
 
     debugImplementation(libs.androidx.compose.ui.tooling)
 
-    // Sementara nonaktifkan module baselineprofile
+    // Jika baseline profile dinonaktifkan, komentari juga:
     // "baselineProfile"(project(":baselineprofile"))
 
-    // Tambahkan coreLibraryDesugaring jika compileOptions sudah diaktifkan
-    // coreLibraryDesugaring(libs.desugar.jdk.libs) // sesuaikan dengan version catalog
+    // ✅ Tambahkan dependency untuk coreLibraryDesugaring
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
 }
