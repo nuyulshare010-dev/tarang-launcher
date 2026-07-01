@@ -2,7 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
-    // Nonaktifkan sementara jika baseline profile bermasalah
+    // Nonaktifkan baseline profile
     // alias(libs.plugins.baselineprofile)
 }
 
@@ -16,7 +16,6 @@ android {
         targetSdk = 35
         versionCode = 7
         versionName = "0.2.4"
-
         multiDexEnabled = true
     }
 
@@ -28,15 +27,12 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
-            // Jika baseline profile diaktifkan, tambahkan:
-            // enableProfileInstaller = false
         }
     }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
-        // Aktifkan desugaring untuk API < 24
         isCoreLibraryDesugaringEnabled = true
     }
 
@@ -64,14 +60,14 @@ dependencies {
     implementation(libs.androidx.palette)
     implementation(libs.androidx.datastore.preferences)
 
-    // Jika baseline profile tidak dipakai, komentari atau hapus:
+    // Hapus profileinstaller
     // implementation(libs.androidx.profileinstaller)
 
     debugImplementation(libs.androidx.compose.ui.tooling)
 
-    // Jika baseline profile dinonaktifkan, komentari juga:
+    // Hapus baselineProfile
     // "baselineProfile"(project(":baselineprofile"))
 
-    // ✅ Tambahkan dependency untuk coreLibraryDesugaring
+    // Tambahkan coreLibraryDesugaring
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
 }
