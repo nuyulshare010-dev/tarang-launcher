@@ -21,23 +21,10 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
-      # Ubah minSdkVersion menjadi 23
-      - name: Set minSdk to 23
-        run: |
-          if [ -f "app/build.gradle" ]; then
-            sed -i 's/minSdkVersion .*/minSdkVersion 23/' app/build.gradle
-          elif [ -f "app/build.gradle.kts" ]; then
-            sed -i 's/minSdk = .*/minSdk = 23/' app/build.gradle.kts
-          else
-            echo "File build.gradle tidak ditemukan!"
-            exit 1
-          fi
-          cat app/build.gradle || cat app/build.gradle.kts
-
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Build with Gradle (with stacktrace)
+      - name: Build with Gradle
         run: ./gradlew build --stacktrace
 
       - name: Run unit tests
@@ -53,7 +40,7 @@ jobs:
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: ignore
 
-      - name: Upload full build log (if failed)
+      - name: Upload build reports if failed
         if: failure()
         uses: actions/upload-artifact@v4
         with:
