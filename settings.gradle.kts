@@ -16,4 +16,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "Tarang Launcher"
 include(":app")
-include(":baselineprofile")
+// include(":baselineprofile")
