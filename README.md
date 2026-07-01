@@ -11,7 +11,7 @@ Full‑bleed artwork, liquid‑glass chrome, and a dock that gets out of your wa
 ![Platform](https://img.shields.io/badge/Android%20TV%20%C2%B7%20Google%20TV-3DDC84?logo=android&logoColor=white)
 ![Min SDK](https://img.shields.io/badge/min%20SDK-28-orange)
 
-<img src="demo/ss/02-app-artwork.png" width="100%" alt="Tarang home screen with app artwork as the wallpaper" />
+<img src="demo/ss/01-home.png" width="100%" alt="Tarang home screen — full-bleed Frame Art wallpaper and a frosted dock" />
 
 </div>
 
@@ -20,8 +20,10 @@ Full‑bleed artwork, liquid‑glass chrome, and a dock that gets out of your wa
 ## ✨ Highlights
 
 - **A home that disappears.** At rest you see only the wallpaper and a frosted dock pinned to the bottom. Press **down** and your full app grid slides up — Apple‑TV style.
-- **Living wallpapers.** Hover a favorite and its show/movie poster plays full‑screen as the background, with a soft ambient glow tuned to whatever you're pointing at.
-- **Real Liquid Glass.** The clock, status pills, and dock refract the wallpaper through their edges via an AGSL shader (Android 13+), over a true frosted blur.
+- **Frame Art.** Turn the TV into a framed painting — a folder slideshow or a single photo, full‑bleed with an elegant floating clock. Press **←/→** to flip through pictures; it can start itself after an idle timeout.
+- **Living wallpapers.** Hover a favorite and its show/movie poster plays full‑screen as the background.
+- **Choose your motion.** Pick how transitions feel — a calm **Default**, fluid **Glide** springs, or **Depth**, where the home recedes into a painting and dives into an app.
+- **Real Liquid Glass.** The clock, status pills, and dock can refract the wallpaper through their edges via an AGSL shader (Android 13+) over a frosted blur — an optional toggle, off by default to stay light on weak TV GPUs.
 - **Made for the remote.** Every interaction is D‑pad‑first — snappy focus, long‑press menus, no touch required.
 - **Actually replaceable.** A guided **Home setup** flow gets Tarang running as your TV's home screen, even on Google TV where the system blocks setting a third‑party launcher.
 
@@ -31,15 +33,15 @@ Full‑bleed artwork, liquid‑glass chrome, and a dock that gets out of your wa
 
 <table>
   <tr>
-    <td width="50%"><img src="demo/ss/01-home.png" alt="Home screen" /><br/><sub><b>Home</b> — frosted dock, full‑bleed wallpaper, nothing else in the way.</sub></td>
+    <td width="50%"><img src="demo/ss/07-frame-art.png" alt="Frame Art" /><br/><sub><b>Frame Art</b> — the TV as a framed painting, with a floating clock. Press ←/→ to flip photos.</sub></td>
+    <td width="50%"><img src="demo/ss/03-grid.png" alt="App grid" /><br/><sub><b>App grid</b> — press down to reveal every installed app.</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="demo/ss/05-settings.png" alt="Settings — Appearance" /><br/><sub><b>Settings</b> — animation style, theme, wallpapers, grid density.</sub></td>
     <td width="50%"><img src="demo/ss/02b-app-artwork.png" alt="App artwork wallpaper" /><br/><sub><b>App artwork</b> — the focused favorite's poster becomes the wallpaper.</sub></td>
   </tr>
   <tr>
-    <td width="50%"><img src="demo/ss/03-grid.png" alt="App grid" /><br/><sub><b>App grid</b> — press down to reveal every installed app.</sub></td>
     <td width="50%"><img src="demo/ss/04-context-menu.png" alt="Long-press menu" /><br/><sub><b>Long‑press menu</b> — favorite, hide, app info, uninstall.</sub></td>
-  </tr>
-  <tr>
-    <td width="50%"><img src="demo/ss/05-settings.png" alt="Settings — Appearance" /><br/><sub><b>Settings</b> — theme, wallpapers, grid density, app artwork.</sub></td>
     <td width="50%"><img src="demo/ss/06-home-setup.png" alt="Settings — Home setup" /><br/><sub><b>Home setup</b> — live checks + deep‑links to become the default Home.</sub></td>
   </tr>
 </table>
@@ -54,17 +56,23 @@ Full‑bleed artwork, liquid‑glass chrome, and a dock that gets out of your wa
 - Dock anchored to the bottom with the grid tucked below the fold, so the home screen stays calm.
 
 **Look & feel**
-- **App‑artwork wallpaper** — plays a favorite's TV poster art while it's focused (reads the system TV artwork).
-- **Wallpapers** — gradient presets, your own photo, or app artwork; animated drift, an ambient glow that picks up the focused app's color, and an optional blur.
-- **Liquid Glass** — AGSL refraction + frosted blur on the chrome (Android 13+), with a plain‑blur fallback on older devices.
+- **Wallpapers** — gradient presets, your own photo, app artwork, or your Frame Art; rendered sharp and static to stay easy on weak TV GPUs.
+- **App‑artwork wallpaper** — plays a favorite's TV poster art full‑screen while it's focused (reads the system TV artwork).
+- **Animation styles** — pick how the big transitions feel: **Default** (chrome scales up and flies apart), **Glide** (fluid springs, no blur), or **Depth** (the home recedes into a painting and dives into an app).
+- **Liquid Glass** — optional AGSL refraction + frosted blur on the chrome (Android 13+, off by default to save GPU on slower TVs), with a flat‑tint fallback everywhere else.
 - **Theme** — Light, Dark, or Automatic (follows time of day).
 - **Adjustable density** — 3 to 7 columns.
+
+**Frame Art**
+- Turn the TV into a **framed picture** — a folder slideshow, a single photo, or your current wallpaper, shown full‑bleed with no chrome.
+- **←/→ to page** through a folder's photos, with slow cross‑fades and an optional "living‑painting" drift.
+- An elegant **floating clock** (optional) with configurable position, size, and date.
+- **Auto‑start** after a configurable idle time, so it doubles as a screensaver; press any key to come back.
 
 **Daily driver**
 - **App management** from a long‑press: add/remove favorite, **Hide app**, **App info**, **Uninstall**.
 - **Hidden apps** — tuck apps out of the grid and bring them back from Settings.
-- **Idle screensaver** — a Ken‑Burns slideshow of your apps' artwork (or a clock) after a configurable timeout.
-- **Reduce motion** — calms wallpaper drift, the slideshow, and tile‑focus springs.
+- **Reduce motion** — calms Frame Art drift and slideshow, tile‑focus springs, and the app‑launch animation.
 - **Home setup** — detects whether Tarang is your default Home and whether the redirect service is on, and deep‑links you to fix each. On Google TV (which won't let an app set itself as Home) an accessibility service quietly returns you to Tarang whenever the stock launcher surfaces.
 - **Status bar** — clock & date, Wi‑Fi indicator, and quick shortcuts into Wi‑Fi / Android settings.
 
