@@ -8,12 +8,12 @@ plugins {
 
 android {
     namespace = "com.tarang.launcher"
-    compileSdk = 35
+    compileSdk = 34
 
     defaultConfig {
         applicationId = "com.tarang.launcher"
         minSdk = 23
-        targetSdk = 35
+        targetSdk = 33
         versionCode = 7
         versionName = "0.2.4"
         multiDexEnabled = true
