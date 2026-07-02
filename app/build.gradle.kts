@@ -13,7 +13,7 @@ android {
     defaultConfig {
         applicationId = "com.tarang.launcher"
         minSdk = 23
-        targetSdk = 34
+        targetSdk = 27
         versionCode = 7
         versionName = "0.2.4"
         multiDexEnabled = true
