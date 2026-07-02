@@ -4,8 +4,8 @@
 
     <!-- A launcher must enumerate installed apps (see plan §2.2). -->
     <uses-permission
-        android:name="android.permission.QUERY_ALL_PACKAGES"
-        tools:ignore="QueryAllPackagesPermission" />
+        android:name="android.permission.QUERY_ALL_PACKAGES" />
+        
 
     <!-- Read connectivity/Wi-Fi state for the status indicator (both normal permissions). -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
