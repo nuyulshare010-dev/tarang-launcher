@@ -14,8 +14,8 @@
     <!-- Browse the device's photos for the optional image wallpaper (runtime-granted). -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission
-        android:name="android.permission.READ_EXTERNAL_STORAGE"
-        android:maxSdkVersion="32" />
+        android:name="android.permission.READ_EXTERNAL_STORAGE" />
+        
 
     <!-- Read apps' home-screen preview channels/programs (the TV content carousel probe). Whether a
          non-system launcher is actually allowed to read other packages' rows is what we're testing. -->
