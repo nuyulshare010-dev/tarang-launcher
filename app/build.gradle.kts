@@ -13,7 +13,7 @@ android {
     defaultConfig {
         applicationId = "com.tarang.launcher"
         minSdk = 23
-        targetSdk = 27
+        targetSdk = 28
         versionCode = 7
         versionName = "0.2.4"
         multiDexEnabled = true
@@ -46,28 +46,29 @@ android {
 }
 
 dependencies {
+    // Dependencies umum
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
-    implementation(libs.androidx.lifecycle.viewmodel.compose)
-    implementation(libs.kotlinx.coroutines.android)
-
+    implementation(libs.androidx.datastore.preferences)
+    
+    // Compose untuk semua versi
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.foundation)
     implementation(libs.androidx.compose.ui.tooling.preview)
-    implementation(libs.androidx.tv.material)
-    implementation(libs.androidx.palette)
-    implementation(libs.androidx.datastore.preferences)
-
+    
+    // TV Material3 - hanya untuk modern
+    modernImplementation(libs.androidx.tv.material)
+    
+    // Untuk STB, gunakan Leanback
+    stbImplementation('androidx.leanback:leanback:1.0.0')
+    stbImplementation('androidx.leanback:leanback-preference:1.0.0')
+    
     // Hapus profileinstaller
-    // implementation(libs.androidx.profileinstaller)
-
-    debugImplementation(libs.androidx.compose.ui.tooling)
-
-    // Hapus baselineProfile
-    // "baselineProfile"(project(":baselineprofile"))
-
-    // Tambahkan coreLibraryDesugaring
+    implementation(libs.androidx.profileinstaller) {
+        exclude group: 'androidx.profileinstaller'
+    }
+    
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
 }
