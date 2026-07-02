@@ -11,7 +11,7 @@ plugins {
 
 android {
     namespace = "com.tarang.launcher.baselineprofile"
-    compileSdk = 34
+    compileSdk = 28
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -22,8 +22,8 @@ android {
     }
 
     defaultConfig {
-        minSdk = 23
-        targetSdk = 33
+        minSdk = 21
+        targetSdk = 29
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
